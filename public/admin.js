@@ -103,6 +103,10 @@
     var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
     return min === max ? euro.format(min / 100) : euro.format(min / 100) + " – " + euro.format(max / 100);
   }
+  function catName(id) {
+    var c = catalog.categories.find(function (c) { return c.id === id; });
+    return c ? c.name : "";
+  }
   function renderList() {
     var n = catalog.products.length;
     $("productList").innerHTML = n ? catalog.products.map(function (p, i) {
@@ -110,7 +114,7 @@
         (p.images[0] ? '<img src="' + esc(p.images[0]) + '" alt="">' : '<div class="thumb-empty"></div>') +
         '<div><div class="title">' + (p.title ? esc(p.title) : '<span class="muted">(sem nome)</span>') +
         (p.visible ? "" : '<span class="badge">escondido</span>') + '</div>' +
-        '<div class="muted small">' + (p.options.length ? priceRange(p) + ' · ' + p.options.length + ' variação(ões)' : 'sem preço · aparece como “Em breve”') +
+        '<div class="muted small">' + (catName(p.category) ? esc(catName(p.category)) + ' · ' : '') + (p.options.length ? priceRange(p) + ' · ' + p.options.length + ' variação(ões)' : 'sem preço · aparece como “Em breve”') +
         ' · ' + p.images.length + ' foto(s)</div></div>' +
         '<div class="actions">' +
         '<button class="icon" data-move="-1" data-i="' + i + '" aria-label="Subir"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
@@ -158,11 +162,15 @@
   function openEditor(index) {
     editingIndex = index;
     editing = index >= 0 ? clone(catalog.products[index]) : {
-      id: "", title: "", description: "", images: [], visible: true, options: []
+      id: "", title: "", category: "", description: "", images: [], visible: true, options: []
     };
 
     $("editorTitle").textContent = index >= 0 ? "Editar produto" : "Novo produto";
     $("fTitle").value = editing.title;
+    $("fCategory").innerHTML = '<option value="">Sem categoria</option>' + catalog.categories.map(function (c) {
+      return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>';
+    }).join("");
+    $("fCategory").value = editing.category || "";
     $("fDesc").value = editing.description;
     $("fVisible").checked = editing.visible;
     $("deleteProduct").hidden = index < 0;
@@ -278,6 +286,7 @@
   $("editorForm").addEventListener("submit", function (e) {
     e.preventDefault();
     editing.title = $("fTitle").value.trim();
+    editing.category = $("fCategory").value;
     editing.description = $("fDesc").value.trim();
     editing.visible = $("fVisible").checked;
     if (!editing.id) editing.id = slug(editing.title || "produto") + "-" + randomId(4);

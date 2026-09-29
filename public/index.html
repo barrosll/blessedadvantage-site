@@ -3,43 +3,160 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Blessed Advantage — Impressão 3D</title>
-  <meta name="description" content="Peças impressas em 3D: decoração, figuras e objetos úteis para casa. Envio por CTT para todo Portugal.">
+  <title>Welabb — Impressão 3D feita em Portugal</title>
+  <meta name="description" content="Peças decorativas e utilitárias de design, impressas em 3D camada a camada. Feitas por encomenda em Portugal e enviadas por CTT.">
+  <meta property="og:title" content="Welabb — Impressão 3D feita em Portugal">
+  <meta property="og:description" content="Peças decorativas e utilitárias de design, impressas camada a camada.">
+  <meta property="og:image" content="/images/welabb-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="images/favicon.png">
-  <link rel="apple-touch-icon" href="images/logo-180.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="images/welabb-favicon.png">
+  <link rel="apple-touch-icon" href="images/welabb-icon-180.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#"><img src="images/logo-180.png" alt="">Blessed Advantage</a>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="Welabb — início"><img src="images/welabb-logo.png" alt="Welabb" width="140" height="44"></a>
+    <nav class="nav" aria-label="Principal">
+      <a href="#loja">Loja</a>
+      <a href="#personalizados">Personalizados</a>
+      <a href="#sobre">Sobre</a>
+    </nav>
     <button class="cart-button" id="cartButton" aria-label="Abrir carrinho">
-      Carrinho <span class="cart-count" id="cartCount">0</span>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7Z M9 7a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      <span>Carrinho</span> <span class="cart-count" id="cartCount">0</span>
     </button>
   </header>
 
   <main>
+    <!-- Hero -->
     <section class="hero">
-      <img class="hero-logo" src="images/logo.png" alt="Blessed Advantage">
-      <p class="eyebrow">Impressão 3D</p>
-      <h1>Peças únicas,<br>impressas camada a camada.</h1>
-      <p class="lead">Decoração, figuras e objetos úteis para casa, impressos em 3D em Portugal e enviados por CTT.</p>
-      <a class="btn" href="#galeria">Ver produtos</a>
+      <div class="hero-text">
+        <p class="label">Impressão 3D · Feito em Portugal</p>
+        <h1>Precisão<br>artesanal.</h1>
+        <p class="lead">Peças decorativas e utilitárias de design, impressas camada a camada. Feitas à medida, para transformar a tua casa.</p>
+        <div class="hero-actions">
+          <a class="btn btn-lime" href="#loja">Explorar colecção <span aria-hidden="true">→</span></a>
+          <a class="btn btn-outline" href="#personalizados">Encomenda personalizada</a>
+        </div>
+      </div>
+      <div class="hero-media">
+        <img src="images/hero-impressora.jpg" alt="Impressora 3D a imprimir peças em filamento verde" width="658" height="705">
+        <pre class="hero-specs" aria-hidden="true">LAYER_HEIGHT: 0.12MM
+FILAMENT_TYPE: PLA+
+NOZZLE_TEMP: 210°C</pre>
+        <p class="hero-status" aria-hidden="true"><span class="blink"></span>Printing...</p>
+      </div>
     </section>
 
-    <section id="galeria" class="gallery" aria-label="Coleção"></section>
+    <!-- Categorias -->
+    <section class="section" id="categorias">
+      <div class="section-head">
+        <div>
+          <p class="label">Categorias</p>
+          <h2>Explora por<br>intenção.</h2>
+        </div>
+        <a class="link-arrow" href="#loja" data-filter="">Ver tudo →</a>
+      </div>
+      <div class="categories" id="categoryCards"></div>
+    </section>
 
-    <section class="info">
-      <div><h3>Feito por encomenda</h3><p>Cada peça é impressa em 3D e acabada à mão, com atenção ao detalhe.</p></div>
-      <div><h3>Envio protegido</h3><p>Embalado com cuidado e enviado por CTT, com código de seguimento.</p></div>
-      <div><h3>Pagamento seguro</h3><p>MB WAY, Multibanco ou cartão, através da Stripe.</p></div>
+    <!-- Loja -->
+    <section class="section" id="loja">
+      <div class="section-head">
+        <div>
+          <p class="label">Loja</p>
+          <h2>Todas as peças.</h2>
+        </div>
+      </div>
+      <div class="filters" id="filters" role="toolbar" aria-label="Filtrar por categoria"></div>
+      <div class="gallery" id="galeria" aria-live="polite"></div>
+    </section>
+
+    <!-- Processo -->
+    <section class="section dark" id="sobre">
+      <div class="process">
+        <div>
+          <p class="label">O processo</p>
+          <h2>Cada peça,<br>camada por camada.</h2>
+          <p class="lead">Não há linha de montagem. Cada peça é impressa por encomenda, com resolução de 0.12mm — o que dá a cada superfície uma textura única, quase orgânica.</p>
+          <ol class="steps">
+            <li><span class="num">01</span><div><strong>Modelação</strong><span>Desenho digital à medida</span></div></li>
+            <li><span class="num">02</span><div><strong>Impressão</strong><span>Resolução 0.12mm, PLA+</span></div></li>
+            <li><span class="num">03</span><div><strong>Acabamento</strong><span>Verificação e embalagem manual</span></div></li>
+          </ol>
+        </div>
+        <figure class="process-media">
+          <img src="images/produtos/produto-09-1.jpg" alt="Fénix impressa em 3D ainda na impressora" loading="lazy">
+          <figcaption class="tag">Process_001 · Workshop</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Personalizados -->
+    <section class="section" id="personalizados">
+      <div class="custom">
+        <div>
+          <p class="label">Personalizados</p>
+          <h2>Tens uma ideia?<br>Nós imprimimos.</h2>
+          <p class="lead">Nomes, cores, medidas exatas ou uma peça criada de raiz. Descreve o que precisas e respondemos com um orçamento, sem compromisso.</p>
+        </div>
+        <form class="form" name="personalizado" method="POST" data-netlify="true" netlify-honeypot="bot-field" enctype="multipart/form-data" id="customForm">
+          <input type="hidden" name="form-name" value="personalizado">
+          <p hidden><label>Não preencher: <input name="bot-field"></label></p>
+          <div class="grid-2">
+            <label class="field"><span>Nome</span><input type="text" name="nome" required autocomplete="name"></label>
+            <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email"></label>
+          </div>
+          <label class="field"><span>O que gostarias de encomendar?</span><textarea name="descricao" required rows="5" placeholder="Ex.: organizador de secretária com o meu nome, em preto e verde, ± 20 cm."></textarea></label>
+          <label class="field"><span>Imagem ou ficheiro 3D (opcional)</span><input type="file" name="ficheiro" accept="image/*,.stl,.3mf,.obj,.step,.stp"></label>
+          <button class="btn btn-dark">Pedir orçamento</button>
+          <p class="form-status" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- Newsletter -->
+    <section class="section dark newsletter">
+      <div>
+        <p class="label">Newsletter</p>
+        <h2>10% na tua<br>primeira peça.</h2>
+        <p class="lead">Subscreve e recebe o teu código de boas-vindas. Acesso antecipado a novidades e edições limitadas — antes de qualquer outra pessoa.</p>
+      </div>
+      <form class="form" name="newsletter" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="newsletterForm">
+        <input type="hidden" name="form-name" value="newsletter">
+        <p hidden><label>Não preencher: <input name="bot-field"></label></p>
+        <label class="field line"><span class="label">Email</span><input type="email" name="email" required placeholder="o.teu@email.com" autocomplete="email"></label>
+        <button class="btn btn-lime btn-block">Subscrever e ganhar 10%</button>
+        <p class="fine">Sem spam. Cancela quando quiseres.</p>
+        <p class="form-status" role="status"></p>
+      </form>
     </section>
   </main>
 
   <footer class="footer">
-    <p>© <span id="year"></span> Blessed Advantage · <a href="mailto:ola@blessedadvantage.pt">ola@blessedadvantage.pt</a></p>
+    <div class="footer-grid">
+      <div>
+        <img src="images/welabb-logo-light.png" alt="Welabb" width="140" height="44">
+        <p>Design contemporâneo, impresso com precisão. Peças únicas feitas à medida, em Portugal — camada por camada.</p>
+      </div>
+      <nav aria-label="Rodapé">
+        <p class="label">Navegar</p>
+        <a href="#loja">Loja</a>
+        <a href="#categorias">Categorias</a>
+        <a href="#personalizados">Personalizados</a>
+        <a href="#sobre">Sobre</a>
+      </nav>
+      <div>
+        <p class="label">Contacto</p>
+        <a href="mailto:ola@welabb.pt">ola@welabb.pt</a>
+        <p class="label" style="margin-top:24px">Produção</p>
+        <p>Produção sob encomenda em PLA+</p>
+        <p>Envio por CTT para todo Portugal</p>
+      </div>
+    </div>
+    <p class="copy">© <span id="year"></span> Welabb · Pagamentos seguros por Stripe: MB WAY, Multibanco e cartão</p>
   </footer>
 
   <!-- Detalhe do produto -->
@@ -51,11 +168,12 @@
         <div class="thumbs" id="dlgThumbs"></div>
       </div>
       <div>
+        <p class="label" id="dlgCategory"></p>
         <h2 id="dlgTitle"></h2>
         <p id="dlgDesc" class="muted"></p>
         <fieldset class="sizes" id="dlgSizes"><legend>Opção</legend></fieldset>
         <p class="price" id="dlgPrice"></p>
-        <button class="btn btn-block" id="dlgAdd">Adicionar ao carrinho</button>
+        <button class="btn btn-dark btn-block" id="dlgAdd">Adicionar ao carrinho</button>
         <p class="soon" id="dlgSoon" hidden>Disponível em breve.</p>
       </div>
     </div>
@@ -71,7 +189,7 @@
     <div class="drawer-foot">
       <div class="row"><span>Subtotal</span><strong id="cartSubtotal">0,00 €</strong></div>
       <p class="muted small" id="shippingNote"></p>
-      <button class="btn btn-block" id="checkoutBtn">Finalizar compra</button>
+      <button class="btn btn-dark btn-block" id="checkoutBtn">Finalizar compra</button>
       <p class="error" id="checkoutError" role="alert"></p>
     </div>
   </aside>

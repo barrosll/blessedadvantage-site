@@ -3,14 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gestão — Blessed Advantage</title>
+  <title>Gestão — Welabb</title>
   <meta name="robots" content="noindex">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="images/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="images/welabb-favicon.png">
   <link rel="stylesheet" href="styles.css">
   <style>
+    :root { --accent: var(--dark); --accent-text: #fff; --radius: 4px; --navy: var(--dark); --on-navy: var(--on-dark); --steel: var(--lime); }
+    .site-header { grid-template-columns: auto 1fr auto; gap: 16px; }
+    .site-header .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font: 500 .72rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+    #topActions { display: flex; gap: 20px; grid-column: 3; }
+    .admin h1, .admin h2 { font-size: 2rem; }
+    .admin h2 { font-size: 1.4rem; }
+    select.field-select { width: 100%; font: 400 1rem var(--sans); color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; }
+    .btn { padding: 12px 22px; background: var(--dark); color: var(--on-dark); }
+    .btn:hover { background: #2a2a2a; }
+    .editor h2 { font-size: 1.8rem; }
+    .btn-sm { padding: 7px 14px; font-size: .8rem; }
     .admin { max-width: 960px; margin: 0 auto; padding: 32px 16px 96px; }
     .admin h1 { font-size: 1.8rem; }
     .admin h2 { font-size: 1.2rem; margin-top: 40px; }
@@ -64,8 +75,8 @@
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/"><img src="images/logo-180.png" alt="">Gestão da loja</a>
+  <header class="site-header">
+    <a class="brand" href="/"><img src="images/welabb-logo.png" alt="Welabb" width="140" height="44">Gestão</a>
     <div id="topActions" hidden>
       <a class="cart-button" href="/" target="_blank" style="text-decoration:none">Ver loja ↗</a>
       <button class="cart-button" id="logout">Sair</button>
@@ -115,7 +126,10 @@
       <label class="btn btn-ghost btn-sm" style="cursor:pointer">+ Adicionar fotos<input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
       <p class="hint" id="photoStatus">Pode escolher várias de uma vez. A primeira é a principal; use ★ para mudar.</p>
       <div style="height:18px"></div>
-      <label class="field"><span>Nome</span><input type="text" id="fTitle" maxlength="120" placeholder="ex.: Dragão a dormir"></label>
+      <div class="grid-2">
+        <label class="field"><span>Nome</span><input type="text" id="fTitle" maxlength="120" placeholder="ex.: Dragão a dormir"></label>
+        <label class="field"><span>Categoria</span><select id="fCategory" class="field-select"></select></label>
+      </div>
       <label class="field"><span>Descrição</span><textarea id="fDesc" maxlength="2000"></textarea></label>
       <label class="check"><input type="checkbox" id="fVisible"> Visível na loja</label>
 

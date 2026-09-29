@@ -1,5 +1,5 @@
 (function () {
-  var CART_KEY = "ba-cart";
+  var CART_KEY = "welabb-cart";
   var catalog = null;
   var cart = loadCart();
   var current = null; // produto aberto no detalhe
@@ -22,19 +22,56 @@
     });
   }
 
-  // Galeria
+  function categoryName(id) {
+    var c = catalog.categories.find(function (c) { return c.id === id; });
+    return c ? c.name : "";
+  }
+  function inCategory(id) {
+    return catalog.products.filter(function (p) { return p.category === id; });
+  }
+
+  // Cartões de categoria (só as que têm produtos)
+  function renderCategories() {
+    var used = catalog.categories.filter(function (c) { return inCategory(c.id).length; });
+    $("categorias").hidden = used.length === 0;
+    $("categoryCards").innerHTML = used.map(function (c, i) {
+      var items = inCategory(c.id);
+      var cover = items.find(function (p) { return p.images[0]; });
+      return '<button class="category" data-filter="' + esc(c.id) + '">' +
+        (cover ? '<img src="' + esc(cover.images[0]) + '" alt="" loading="lazy">' : "") +
+        '<span class="tag">Cat_' + String(i + 1).padStart(2, "0") + '</span>' +
+        '<span class="cat-info"><h3>' + esc(c.name) + '</h3><span class="count">' + items.length + (items.length === 1 ? " peça" : " peças") + '</span></span></button>';
+    }).join("");
+  }
+
+  // Filtros e galeria
+  var activeFilter = "";
+  function renderFilters() {
+    var used = catalog.categories.filter(function (c) { return inCategory(c.id).length; });
+    $("filters").hidden = used.length < 2;
+    $("filters").innerHTML = [{ id: "", name: "Tudo" }].concat(used).map(function (c) {
+      return '<button class="chip" data-filter="' + esc(c.id) + '" aria-pressed="' + (c.id === activeFilter) + '">' + esc(c.name) + '</button>';
+    }).join("");
+  }
+  function setFilter(id) {
+    activeFilter = id || "";
+    renderFilters();
+    renderGallery();
+  }
   function renderGallery() {
-    if (!catalog.products.length) {
-      $("galeria").innerHTML = '<p class="muted">Novos produtos em breve.</p>';
+    var list = activeFilter ? inCategory(activeFilter) : catalog.products;
+    if (!list.length) {
+      $("galeria").innerHTML = '<p class="empty-state">Novas peças em breve.</p>';
       return;
     }
-    $("galeria").innerHTML = catalog.products.map(function (p) {
+    $("galeria").innerHTML = list.map(function (p) {
       var price = p.options.length
-        ? (p.options.length > 1 ? "desde " : "") + money(Math.min.apply(null, p.options.map(function (o) { return o.price; })))
-        : "Em breve";
-      return '<button class="card" data-id="' + esc(p.id) + '">' +
-        (p.images[0] ? '<img src="' + esc(p.images[0]) + '" alt="' + esc(p.title) + '" loading="lazy">' : '<div class="img-empty"></div>') +
-        (p.title ? '<h3>' + esc(p.title) + '</h3>' : "") + '<p>' + price + '</p></button>';
+        ? '<p class="price-line">' + (p.options.length > 1 ? "desde " : "") + money(Math.min.apply(null, p.options.map(function (o) { return o.price; }))) + '</p>'
+        : '<p class="price-line soon-line">Em breve</p>';
+      return '<button class="card" data-id="' + esc(p.id) + '"><span class="card-img">' +
+        (p.images[0] ? '<img src="' + esc(p.images[0]) + '" alt="' + esc(p.title) + '" loading="lazy">' : "") +
+        (p.category ? '<span class="tag">' + esc(categoryName(p.category)) + '</span>' : "") + '</span>' +
+        (p.title ? '<h3>' + esc(p.title) + '</h3>' : "") + price + '</button>';
     }).join("");
   }
 
@@ -47,6 +84,8 @@
       return '<button type="button" data-photo="' + i + '" aria-label="Foto ' + (i + 1) + '"><img src="' + esc(src) + '" alt=""></button>';
     }).join("");
     showPhoto(0);
+    $("dlgCategory").textContent = categoryName(current.category);
+    $("dlgCategory").hidden = !current.category;
     $("dlgTitle").textContent = current.title;
     $("dlgTitle").hidden = !current.title;
     $("dlgDesc").textContent = current.description;
@@ -147,7 +186,7 @@
       })
       .catch(function (err) {
         $("checkoutError").textContent = err.message === "Erro" || err.message === "Failed to fetch"
-          ? "Não foi possível iniciar o pagamento. Tente novamente."
+          ? "Não foi possível iniciar o pagamento. Tenta novamente."
           : err.message;
         btn.disabled = false;
         btn.textContent = "Finalizar compra";
@@ -176,10 +215,51 @@
   $("checkoutBtn").addEventListener("click", checkout);
   $("year").textContent = new Date().getFullYear();
 
+  // Cartões de categoria, "Ver tudo" e filtros
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest("[data-filter]");
+    if (!el || !catalog) return;
+    e.preventDefault();
+    setFilter(el.dataset.filter);
+    if (!el.classList.contains("chip")) $("loja").scrollIntoView();
+  });
+
+  // Formulários (Netlify Forms): envio sem sair da página
+  function wireForm(id, okMessage) {
+    var form = $(id);
+    var status = form.querySelector(".form-status");
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var btn = form.querySelector("button");
+      var data = new FormData(form);
+      var hasFile = form.enctype === "multipart/form-data";
+      btn.disabled = true;
+      status.className = "form-status";
+      status.textContent = "A enviar…";
+      fetch("/", {
+        method: "POST",
+        headers: hasFile ? {} : { "Content-Type": "application/x-www-form-urlencoded" },
+        body: hasFile ? data : new URLSearchParams(data).toString()
+      }).then(function (r) {
+        if (!r.ok) throw new Error();
+        form.reset();
+        status.className = "form-status ok";
+        status.textContent = okMessage;
+      }).catch(function () {
+        status.className = "form-status err";
+        status.textContent = "Não foi possível enviar. Tenta novamente ou escreve para ola@welabb.pt.";
+      }).then(function () { btn.disabled = false; });
+    });
+  }
+  wireForm("customForm", "Pedido recebido! Respondemos com um orçamento em breve.");
+  wireForm("newsletterForm", "Subscrição feita! Vais receber o teu código de 10% por email.");
+
   fetch("/api/catalog")
     .then(function (r) { return r.json(); })
     .then(function (data) {
       catalog = data;
+      renderCategories();
+      renderFilters();
       renderGallery();
       renderCart();
       if (location.hash === "#carrinho") openCart();

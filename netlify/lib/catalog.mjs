@@ -15,7 +15,11 @@ export function imageStore() {
 
 export async function loadCatalog() {
   const catalog = (await catalogStore().get(KEY, { type: "json" })) || seed;
-  return { ...catalog, products: catalog.products.map(normalizeImages) };
+  return {
+    ...catalog,
+    categories: catalog.categories || seed.categories,
+    products: catalog.products.map(normalizeImages)
+  };
 }
 
 export async function saveCatalog(catalog) {
@@ -27,6 +31,7 @@ export async function saveCatalog(catalog) {
 export function publicCatalog(catalog) {
   return {
     shipping: catalog.shipping,
+    categories: catalog.categories || seed.categories,
     products: catalog.products.filter((p) => p.visible).map(normalizeImages)
   };
 }
@@ -60,6 +65,14 @@ export function sanitizeCatalog(input) {
   if (!(shipping.price >= 0 && shipping.price <= 10000)) throw new Error("Preço de envio inválido");
   if (!(shipping.freeFrom >= 0)) throw new Error("Valor de envio grátis inválido");
 
+  const categoryIds = new Set();
+  const categories = (Array.isArray(input.categories) ? input.categories : seed.categories).slice(0, 20).map((c) => {
+    const cat = { id: text(c.id, 40).toLowerCase(), name: text(c.name, 60) };
+    if (!/^[a-z0-9-]+$/.test(cat.id) || categoryIds.has(cat.id) || !cat.name) throw new Error("Categoria inválida");
+    categoryIds.add(cat.id);
+    return cat;
+  });
+
   const ids = new Set();
   const products = input.products.map((p, i) => {
     const id = text(p.id, 60).toLowerCase();
@@ -87,8 +100,10 @@ export function sanitizeCatalog(input) {
       optionIds.add(opt.id);
       return opt;
     });
-    return { id, title, visible: Boolean(p.visible), images, description: text(p.description, 2000), options };
+    const category = categoryIds.has(p.category) ? p.category : "";
+
+    return { id, title, category, visible: Boolean(p.visible), images, description: text(p.description, 2000), options };
   });
 
-  return { shipping, products };
+  return { shipping, categories, products };
 }

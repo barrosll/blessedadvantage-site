@@ -94,6 +94,7 @@ export default async (req) => {
     phone_number_collection: { enabled: true }, // necessário para as etiquetas CTT/InPost
     tax_id_collection: { enabled: true }, // NIF para a fatura
     billing_address_collection: "auto",
+    allow_promotion_codes: true, // códigos de desconto criados na Stripe (ex.: 10% da newsletter)
     success_url: `${siteUrl}/sucesso.html?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${siteUrl}/#carrinho`,
     metadata: {
