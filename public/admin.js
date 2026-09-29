@@ -117,6 +117,7 @@
         '<div><div class="title">' + (p.title ? esc(p.title) : '<span class="muted">(sem nome)</span>') +
         (p.visible ? "" : '<span class="badge">escondido</span>') + '</div>' +
         '<div class="muted small">' + (catName(p.category) ? esc(catName(p.category)) + ' · ' : '') + (p.options.length ? priceRange(p) + ' · ' + p.options.length + ' variação(ões)' : 'sem preço · aparece como “Em breve”') +
+        ((p.colors || []).length ? ' · ' + p.colors.length + ' cor(es)' : '') + (p.custom ? ' · personalizável' : '') +
         ' · ' + p.images.length + ' foto(s)</div></div>' +
         '<div class="actions">' +
         '<button class="icon" data-move="-1" data-i="' + i + '" aria-label="Subir"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
@@ -197,7 +198,7 @@
   function openEditor(index) {
     editingIndex = index;
     editing = index >= 0 ? clone(catalog.products[index]) : {
-      id: "", title: "", category: "", description: "", images: [], visible: true, options: []
+      id: "", title: "", category: "", description: "", images: [], visible: true, options: [], colors: [], custom: false
     };
 
     $("editorTitle").textContent = index >= 0 ? "Editar produto" : "Novo produto";
@@ -208,6 +209,9 @@
     $("fCategory").value = editing.category || "";
     $("fDesc").value = editing.description;
     $("fVisible").checked = editing.visible;
+    editing.colors = editing.colors || [];
+    $("fCustom").checked = Boolean(editing.custom);
+    renderColors();
     $("deleteProduct").hidden = index < 0;
     $("editorError").textContent = "";
     $("photoStatus").textContent = "Pode escolher várias de uma vez. A primeira é a principal; use ★ para mudar.";
@@ -244,7 +248,7 @@
     var others = catalog.products.map(function (p, i) { return { p: p, i: i }; })
       .filter(function (x) { return x.i !== editingIndex && x.p.options.length; });
     $("copyFrom").hidden = others.length === 0;
-    $("copyFrom").innerHTML = '<option value="">Copiar variações de…</option>' + others.map(function (x) {
+    $("copyFrom").innerHTML = '<option value="">Copiar variações e cores de…</option>' + others.map(function (x) {
       return '<option value="' + esc(x.p.id) + '">' + esc(x.p.title || "Produto " + (x.i + 1)) + '</option>';
     }).join("");
   }
@@ -265,10 +269,44 @@
     editing.options.splice(Number(b.dataset.remove), 1);
     renderOptions();
   });
+  // Cores
+  function renderColors() {
+    $("colorRows").innerHTML = editing.colors.map(function (c, i) {
+      return '<div class="color-row">' +
+        '<input type="color" data-cf="hex" data-i="' + i + '" value="' + esc(c.hex || "#cccccc") + '" aria-label="Cor">' +
+        '<input type="text" data-cf="name" data-i="' + i + '" value="' + esc(c.name) + '" placeholder="ex.: Preto mate" maxlength="40">' +
+        '<button type="button" class="icon" data-delcolor="' + i + '" aria-label="Remover cor">×</button></div>';
+    }).join("");
+  }
+  $("colorRows").addEventListener("input", function (e) {
+    var el = e.target, c = editing.colors[Number(el.dataset.i)];
+    if (c && el.dataset.cf) c[el.dataset.cf] = el.value;
+  });
+  $("colorRows").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-delcolor]");
+    if (!b) return;
+    editing.colors.splice(Number(b.dataset.delcolor), 1);
+    renderColors();
+  });
+  $("addColor").addEventListener("click", function () {
+    editing.colors.push({ name: "", hex: "#222222" });
+    renderColors();
+    var inputs = $("colorRows").querySelectorAll("input[type=text]");
+    inputs[inputs.length - 1].focus();
+  });
+
   $("addOption").addEventListener("click", function () { addOptionRow(); renderOptions(); });
   $("copyFrom").addEventListener("change", function () {
     var src = catalog.products.find(function (p) { return p.id === $("copyFrom").value; });
-    if (src) { editing.options = clone(src.options); renderOptions(); toast("Variações copiadas"); }
+    if (src) {
+      editing.options = clone(src.options);
+      editing.colors = clone(src.colors || []);
+      editing.custom = Boolean(src.custom);
+      $("fCustom").checked = editing.custom;
+      renderOptions();
+      renderColors();
+      toast("Variações e cores copiadas");
+    }
     $("copyFrom").value = "";
   });
   $("cancelEdit").addEventListener("click", function () { $("editor").close(); });
@@ -324,6 +362,10 @@
     editing.category = $("fCategory").value;
     editing.description = $("fDesc").value.trim();
     editing.visible = $("fVisible").checked;
+    editing.custom = $("fCustom").checked;
+    for (var c = 0; c < editing.colors.length; c++) {
+      if (!editing.colors[c].name.trim()) { $("editorError").textContent = "Preencha o nome de todas as cores (ou remova as vazias)."; return; }
+    }
     if (!editing.id) editing.id = slug(editing.title || "produto") + "-" + randomId(4);
 
     for (var i = 0; i < editing.options.length; i++) {

@@ -19,7 +19,7 @@ export async function loadCatalog() {
     ...catalog,
     categories: catalog.categories || seed.categories,
     site: catalog.site || {},
-    products: catalog.products.map(normalizeImages)
+    products: catalog.products.map(normalizeProduct)
   };
 }
 
@@ -34,16 +34,24 @@ export function publicCatalog(catalog) {
     shipping: catalog.shipping,
     categories: catalog.categories || seed.categories,
     site: catalog.site || {},
-    products: catalog.products.filter((p) => p.visible).map(normalizeImages)
+    products: catalog.products.filter((p) => p.visible).map(normalizeProduct)
   };
 }
 
-// Catálogos antigos tinham uma só foto em "image"
-function normalizeImages(p) {
-  if (Array.isArray(p.images)) return p;
+// Completa produtos de versões antigas do catálogo
+// (uma só foto em "image"; sem cores nem opção de personalizado)
+function normalizeProduct(p) {
   const { image, ...rest } = p;
-  return { ...rest, images: image ? [image] : [] };
+  return {
+    ...rest,
+    images: Array.isArray(p.images) ? p.images : image ? [image] : [],
+    colors: Array.isArray(p.colors) ? p.colors : [],
+    custom: Boolean(p.custom)
+  };
 }
+
+export const CUSTOM_COLOR = "personalizado";
+export const MAX_NOTE = 300;
 
 const IMAGE_PATH = /^(\/img\/[a-z0-9-]+|images\/[\w-]+(\/[\w-]+)*\.(jpe?g|png|webp|svg))$/i;
 const MAX_IMAGES = 12;
@@ -55,7 +63,7 @@ const cents = (v) => Math.round(Number(v));
 export function sanitizeCatalog(input) {
   if (!input || !Array.isArray(input.products)) throw new Error("Catálogo inválido");
   if (input.products.length > 500) throw new Error("Demasiados produtos");
-  input = { ...input, products: input.products.map(normalizeImages) };
+  input = { ...input, products: input.products.map(normalizeProduct) };
 
   const s = input.shipping || {};
   const shipping = {
@@ -104,7 +112,21 @@ export function sanitizeCatalog(input) {
     });
     const category = categoryIds.has(p.category) ? p.category : "";
 
-    return { id, title, category, visible: Boolean(p.visible), images, description: text(p.description, 2000), options };
+    const colorNames = new Set();
+    const colors = (Array.isArray(p.colors) ? p.colors : []).slice(0, 20).map((c) => {
+      const color = { name: text(c.name, 40), hex: text(c.hex, 7).toLowerCase() };
+      if (!color.name) throw new Error(`${name}: falta o nome de uma cor`);
+      if (color.name.toLowerCase() === CUSTOM_COLOR) throw new Error(`${name}: “Personalizado” é criado pela opção própria, não como cor`);
+      if (colorNames.has(color.name.toLowerCase())) throw new Error(`${name}: cor repetida (“${color.name}”)`);
+      if (color.hex && !/^#[0-9a-f]{6}$/.test(color.hex)) throw new Error(`${name}: código de cor inválido em “${color.name}”`);
+      colorNames.add(color.name.toLowerCase());
+      return color;
+    });
+
+    return {
+      id, title, category, visible: Boolean(p.visible), images,
+      description: text(p.description, 2000), options, colors, custom: Boolean(p.custom)
+    };
   });
 
   // Imagens do site (hero e processo); vazio = imagem original

@@ -172,8 +172,16 @@ NOZZLE_TEMP: 210°C</pre>
         <h2 id="dlgTitle"></h2>
         <p id="dlgDesc" class="muted"></p>
         <fieldset class="sizes" id="dlgSizes"><legend>Opção</legend></fieldset>
+        <fieldset class="colors" id="dlgColors"><legend>Cor</legend></fieldset>
+        <label class="custom-toggle" id="dlgCustomToggle"><input type="checkbox" id="dlgCustomCheck"> Quero personalizar</label>
+        <label class="field note" id="dlgNoteWrap" hidden>
+          <span>Nota de personalização</span>
+          <textarea id="dlgNote" maxlength="300" rows="3" placeholder="Ex.: com o nome “Maria”, em verde-água."></textarea>
+          <span class="hint" id="dlgNoteCount">0/300</span>
+        </label>
         <p class="price" id="dlgPrice"></p>
         <button class="btn btn-dark btn-block" id="dlgAdd">Adicionar ao carrinho</button>
+        <p class="error" id="dlgError" role="alert"></p>
         <p class="soon" id="dlgSoon" hidden>Disponível em breve.</p>
       </div>
     </div>

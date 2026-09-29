@@ -68,6 +68,9 @@
     .slot { display: grid; gap: 10px; align-content: start; justify-items: start; }
     .slot img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--line); border: 1px solid var(--line); }
     .slot .hint { margin: 0; }
+    .color-rows { display: grid; gap: 8px; margin: 8px 0 10px; }
+    .color-row { display: grid; grid-template-columns: 44px 1fr 34px; gap: 8px; align-items: center; }
+    .color-row input[type=color] { width: 44px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; }
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy); color: var(--on-navy); padding: 10px 20px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--error); color: #fff; }
@@ -156,7 +159,7 @@
       <label class="check"><input type="checkbox" id="fVisible"> Visível na loja</label>
 
       <strong>Variações e preços</strong>
-      <p class="hint" style="margin-top:2px">Ex.: cores, tamanhos ou acabamentos. Sem variações, o produto aparece na loja como “Em breve”.</p>
+      <p class="hint" style="margin-top:2px">Ex.: tamanhos ou modelos, cada um com o seu preço. Sem variações, o produto aparece na loja como “Em breve”.</p>
       <table class="options-table">
         <thead><tr><th>Variação</th><th>Preço (€)</th><th>Peso (kg)</th><th></th></tr></thead>
         <tbody id="optionRows"></tbody>
@@ -166,6 +169,13 @@
         <select id="copyFrom" class="btn btn-ghost btn-sm" aria-label="Copiar variações de outro produto"></select>
       </div>
       <p class="hint">O peso (com embalagem) é usado para a etiqueta de envio.</p>
+
+      <div style="height:18px"></div>
+      <strong>Cores</strong>
+      <p class="hint" style="margin-top:2px">O cliente escolhe uma destas cores. Sem cores, não aparece escolha de cor.</p>
+      <div class="color-rows" id="colorRows"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="addColor">+ Cor</button>
+      <label class="check" style="margin-top:14px"><input type="checkbox" id="fCustom"> Aceita pedido personalizado <span class="muted">(o cliente escolhe “Personalizado” e escreve uma nota)</span></label>
 
       <div class="editor-foot">
         <button type="button" class="btn btn-danger btn-sm" id="deleteProduct">Apagar produto</button>

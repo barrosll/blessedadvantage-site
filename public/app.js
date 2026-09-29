@@ -101,7 +101,39 @@
     }).join("");
     $("dlgPrice").textContent = "";
     if (buyable) updateDialogPrice();
+
+    // Cores (+ "Personalizado" se o produto aceitar). Sem cores mas com personalizado: caixa "Quero personalizar"
+    var colors = current.colors.slice();
+    var withCustomRadio = current.custom && colors.length > 0;
+    $("dlgColors").hidden = !buyable || colors.length === 0;
+    $("dlgColors").innerHTML = "<legend>Cor</legend>" + colors.map(function (c, i) {
+      return '<label><input type="radio" name="color" value="' + esc(c.name) + '"' + (i === 0 ? " checked" : "") + ">" +
+        '<span class="swatch" style="background:' + esc(c.hex || "#ccc") + '"></span>' + esc(c.name) + "</label>";
+    }).join("") + (withCustomRadio
+      ? '<label><input type="radio" name="color" value="' + CUSTOM + '"><span class="swatch custom"></span>Personalizado</label>'
+      : "");
+    $("dlgCustomToggle").hidden = !buyable || !current.custom || colors.length > 0;
+    $("dlgCustomCheck").checked = false;
+    $("dlgNote").value = "";
+    $("dlgError").textContent = "";
+    updateNote();
     $("productDialog").showModal();
+  }
+
+  var CUSTOM = "personalizado";
+  function selectedColor() {
+    if (current.colors.length) {
+      var input = document.querySelector('#dlgColors input:checked');
+      return input ? input.value : "";
+    }
+    return current.custom && $("dlgCustomCheck").checked ? CUSTOM : "";
+  }
+  // Mostra o campo de nota só quando escolhe "Personalizado"
+  function updateNote() {
+    var show = selectedColor() === CUSTOM;
+    $("dlgNoteWrap").hidden = !show;
+    $("dlgNoteCount").textContent = $("dlgNote").value.length + "/300";
+    if (show) $("dlgNote").focus();
   }
   function showPhoto(i) {
     $("dlgImage").src = current.images[i] || "";
@@ -117,8 +149,18 @@
 
   function addToCart() {
     var size = selectedSize();
-    var line = cart.find(function (l) { return l.id === current.id && l.size === size.id; });
-    if (line) line.qty += 1; else cart.push({ id: current.id, size: size.id, qty: 1 });
+    var color = selectedColor();
+    var note = color === CUSTOM ? $("dlgNote").value.trim() : "";
+    if (color === CUSTOM && !note) {
+      $("dlgError").textContent = "Escreve na nota como queres a peça personalizada.";
+      $("dlgNote").focus();
+      return;
+    }
+    // Linhas iguais (mesma opção, cor e nota) somam a quantidade
+    var line = cart.find(function (l) {
+      return l.id === current.id && l.size === size.id && (l.color || "") === color && (l.note || "") === note;
+    });
+    if (line) line.qty += 1; else cart.push({ id: current.id, size: size.id, color: color, note: note, qty: 1 });
     saveCart();
     renderCart();
     $("productDialog").close();
@@ -127,15 +169,23 @@
 
   // Carrinho
   function renderCart() {
-    // Remove linhas de produtos que já não existem no catálogo
-    cart = cart.filter(function (l) { return findOption(findProduct(l.id), l.size); });
+    // Remove linhas de produtos, opções ou cores que já não existem no catálogo
+    cart = cart.filter(function (l) {
+      var p = findProduct(l.id);
+      if (!findOption(p, l.size)) return false;
+      var color = l.color || "";
+      if (color === CUSTOM) return p.custom && l.note;
+      return p.colors.length ? p.colors.some(function (c) { return c.name === color; }) : color === "";
+    });
     var count = 0, subtotal = 0;
     $("cartItems").innerHTML = cart.length ? cart.map(function (l, i) {
       var p = findProduct(l.id), s = findOption(p, l.size);
       count += l.qty;
       subtotal += s.price * l.qty;
       return '<li><img src="' + esc(p.images[0] || "") + '" alt="">' +
-        '<div><div class="name">' + esc(p.title || "Produto") + '</div><div class="muted small">' + esc(s.label) + '</div>' +
+        '<div><div class="name">' + esc(p.title || "Produto") + '</div><div class="muted small">' +
+        esc([s.label, l.color === CUSTOM ? "Personalizado" : l.color].filter(Boolean).join(" · ")) + '</div>' +
+        (l.note ? '<div class="note-line">“' + esc(l.note) + '”</div>' : "") +
         '<div class="qty"><button data-i="' + i + '" data-d="-1" aria-label="Menos">−</button>' + l.qty +
         '<button data-i="' + i + '" data-d="1" aria-label="Mais">+</button></div></div>' +
         '<strong>' + money(s.price * l.qty) + '</strong></li>';
@@ -199,6 +249,12 @@
     if (card) openProduct(card.dataset.id);
   });
   $("dlgSizes").addEventListener("change", updateDialogPrice);
+  $("dlgColors").addEventListener("change", updateNote);
+  $("dlgCustomCheck").addEventListener("change", updateNote);
+  $("dlgNote").addEventListener("input", function () {
+    $("dlgNoteCount").textContent = $("dlgNote").value.length + "/300";
+    $("dlgError").textContent = "";
+  });
   $("dlgThumbs").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-photo]");
     if (b) showPhoto(Number(b.dataset.photo));

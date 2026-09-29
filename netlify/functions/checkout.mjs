@@ -1,6 +1,6 @@
 // Cria uma sessão de pagamento na Stripe (MB WAY, Multibanco, cartão...).
 // Os preços vêm SEMPRE do catálogo no servidor, nunca do browser.
-import { loadCatalog, publicCatalog } from "../lib/catalog.mjs";
+import { loadCatalog, publicCatalog, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
 
 export const config = { path: "/api/checkout" };
 
@@ -39,11 +39,13 @@ export default async (req) => {
   }
 
   const items = Array.isArray(body.items) ? body.items : [];
-  if (items.length === 0 || items.length > 50) return json({ error: "Carrinho vazio" }, 400);
+  if (items.length === 0) return json({ error: "Carrinho vazio" }, 400);
+  if (items.length > 40) return json({ error: "Demasiados produtos diferentes no carrinho" }, 400);
 
   const catalog = publicCatalog(await loadCatalog());
   const lineItems = [];
   const summary = [];
+  const notes = {}; // notas de personalização, uma por linha, em metadata
   let subtotal = 0;
   let weight = 0;
 
@@ -54,15 +56,33 @@ export default async (req) => {
     if (!product || !size || !(qty >= 1 && qty <= MAX_QTY)) {
       return json({ error: "Produto inválido no carrinho" }, 400);
     }
+
+    // Cor: tem de ser uma das cores do produto, ou "personalizado" se o produto o permitir
+    const color = String(item.color || "");
+    const isCustom = color === CUSTOM_COLOR;
+    const colorOk = isCustom
+      ? product.custom
+      : product.colors.length ? product.colors.some((c) => c.name === color) : color === "";
+    if (!colorOk) return json({ error: "Escolhe uma cor válida para cada produto" }, 400);
+    const note = isCustom ? String(item.note || "").trim().slice(0, MAX_NOTE) : "";
+    if (isCustom && !note) return json({ error: "Escreve a nota de personalização" }, 400);
+
     subtotal += size.price * qty;
     weight += size.weight * qty;
-    summary.push(`${qty}x ${product.id}/${size.id}`);
+    const line = lineItems.length + 1;
+    summary.push(`${qty}x ${product.id}/${size.id}${color ? "/" + color : ""}`);
+    if (note) notes[`nota_${line}`] = note;
+
+    const details = [size.label, isCustom ? "Personalizado" : color].filter(Boolean).join(" · ");
     lineItems.push({
       quantity: qty,
       price_data: {
         currency: "eur",
         unit_amount: size.price,
-        product_data: { name: `${product.title || "Produto"} — ${size.label}` }
+        product_data: {
+          name: `${product.title || "Produto"} — ${details}`,
+          description: note ? `Nota: ${note}` : undefined
+        }
       }
     });
   }
@@ -99,7 +119,8 @@ export default async (req) => {
     cancel_url: `${siteUrl}/#carrinho`,
     metadata: {
       items: summary.join(", ").slice(0, 500),
-      weight_kg: weight.toFixed(2)
+      weight_kg: weight.toFixed(2),
+      ...notes
     }
   });
 
