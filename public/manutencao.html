@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welabb — Voltamos em breve</title>
+  <meta name="description" content="A loja Welabb está em manutenção. Voltamos em breve.">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/images/welabb-favicon.png">
+  <style>
+    :root { --bg: #f4f4f4; --text: #0d0d0d; --muted: #5c5c5c; --lime: #d4e000; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.6 "Inter", system-ui, sans-serif;
+      display: grid; place-items: center; padding: 32px 16px;
+    }
+    main { width: 100%; max-width: 560px; text-align: center; }
+    .logo { width: min(320px, 80vw); height: auto; margin: 0 auto 48px; display: block; }
+    .label {
+      display: inline-flex; align-items: center; gap: 10px; margin: 0 0 18px;
+      font: 500 .72rem/1 "JetBrains Mono", monospace; letter-spacing: .22em; text-transform: uppercase; color: var(--muted);
+    }
+    .label::before { content: ""; width: 8px; height: 8px; background: var(--lime); animation: blink 1.2s steps(2) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    h1 { font: 700 clamp(2.4rem, 8vw, 4rem)/1 "Inter Tight", "Inter", sans-serif; letter-spacing: -.02em; text-transform: uppercase; margin: 0 0 20px; }
+    p { color: var(--muted); font-size: 1.05rem; margin: 0 auto; max-width: 420px; }
+    .contact { margin-top: 32px; font-size: .95rem; }
+    .contact a { color: var(--text); }
+    @media (prefers-reduced-motion: reduce) { .label::before { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="/images/welabb-logo.png" alt="Welabb" width="320" height="100">
+    <p class="label">Em manutenção</p>
+    <h1>Voltamos<br>em breve.</h1>
+    <p>Estamos a preparar a nova loja Welabb — peças impressas em 3D, camada a camada, feitas em Portugal.</p>
+  </main>
+</body>
+</html>

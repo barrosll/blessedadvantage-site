@@ -28,6 +28,8 @@ function toForm(obj, prefix, out) {
 export default async (req) => {
   if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
 
+  if (Netlify.env.get("MAINTENANCE_MODE") === "1") return json({ error: "A loja está em manutenção. Voltamos em breve!" }, 503);
+
   const secretKey = Netlify.env.get("STRIPE_SECRET_KEY");
   if (!secretKey) return json({ error: "Pagamentos ainda não configurados" }, 500);
 
