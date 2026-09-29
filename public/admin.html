@@ -31,15 +31,20 @@
     .btn-sm { padding: 6px 14px; font-size: .9rem; }
     .list { display: grid; gap: 10px; margin-top: 12px; }
     .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
-    .item img, .thumb-empty { width: 56px; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 4px; background: var(--line); }
+    .item img, .thumb-empty { width: 56px; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 4px; background: var(--line); }
     .item .title { font-weight: 600; }
     .item .actions { display: flex; gap: 6px; align-items: center; }
     .icon { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 1rem; color: var(--text); }
     .icon:disabled { opacity: .3; cursor: default; }
     .badge { display: inline-block; font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #fdecea; color: var(--error); margin-left: 6px; vertical-align: middle; }
     .editor { width: min(760px, calc(100% - 24px)); }
-    .photo { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: center; margin-bottom: 18px; }
-    .photo img, .photo .thumb-empty { width: 140px; }
+    .photos-edit { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 10px; }
+    .ph { position: relative; margin: 0; }
+    .ph img { width: 110px; height: 110px; object-fit: cover; border-radius: 6px; display: block; border: 1px solid var(--line); }
+    .ph-main { position: absolute; left: 4px; bottom: 4px; font-size: .7rem; background: var(--navy); color: var(--on-navy); padding: 1px 6px; border-radius: 999px; }
+    .ph-btn { position: absolute; top: 4px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(3, 29, 45, .75); color: #fff; cursor: pointer; line-height: 1; }
+    .ph-del { right: 4px; }
+    .ph-left { left: 4px; }
     .options-table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
     .options-table th { text-align: left; font-size: .8rem; font-weight: 600; color: var(--muted); padding: 4px 6px; }
     .options-table td { padding: 4px 6px; }
@@ -53,7 +58,6 @@
     .toast.err { background: var(--error); color: #fff; }
     .hint { font-size: .85rem; color: var(--muted); margin: 4px 0 0; }
     @media (max-width: 560px) {
-      .photo { grid-template-columns: 1fr; }
       .item { grid-template-columns: 48px 1fr; }
       .item .actions { grid-column: 1 / -1; justify-content: flex-end; }
     }
@@ -81,8 +85,8 @@
   <!-- Gestão -->
   <main class="admin" id="mainView" hidden>
     <div class="toolbar">
-      <h1>Impressões</h1>
-      <button class="btn" id="newProduct">+ Nova impressão</button>
+      <h1>Produtos</h1>
+      <button class="btn" id="newProduct">+ Novo produto</button>
     </div>
     <p class="hint">A ordem aqui é a ordem na loja. As alterações ficam visíveis na loja assim que guarda.</p>
     <div class="list" id="productList"></div>
@@ -101,35 +105,34 @@
     </form>
   </main>
 
-  <!-- Editor de impressão -->
+  <!-- Editor de produto -->
   <dialog class="product-dialog editor" id="editor">
     <form method="dialog" class="dialog-close"><button aria-label="Fechar">×</button></form>
     <form id="editorForm">
-      <h2 id="editorTitle" style="margin-top:0">Impressão</h2>
-      <div class="photo">
-        <div id="photoPreview"></div>
-        <div>
-          <label class="btn btn-ghost btn-sm" style="cursor:pointer">Escolher foto<input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden></label>
-          <p class="hint" id="photoStatus">JPG, PNG ou WebP. A foto é reduzida automaticamente antes de ser enviada.</p>
-        </div>
-      </div>
-      <label class="field"><span>Título</span><input type="text" id="fTitle" maxlength="120" required></label>
+      <h2 id="editorTitle" style="margin-top:0">Produto</h2>
+      <strong>Fotos</strong>
+      <div class="photos-edit" id="photoPreview"></div>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer">+ Adicionar fotos<input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" multiple hidden></label>
+      <p class="hint" id="photoStatus">Pode escolher várias de uma vez. A primeira é a principal; use ★ para mudar.</p>
+      <div style="height:18px"></div>
+      <label class="field"><span>Nome</span><input type="text" id="fTitle" maxlength="120" placeholder="ex.: Dragão a dormir"></label>
       <label class="field"><span>Descrição</span><textarea id="fDesc" maxlength="2000"></textarea></label>
       <label class="check"><input type="checkbox" id="fVisible"> Visível na loja</label>
 
-      <strong>Tamanhos e preços</strong>
+      <strong>Variações e preços</strong>
+      <p class="hint" style="margin-top:2px">Ex.: cores, tamanhos ou acabamentos. Sem variações, o produto aparece na loja como “Em breve”.</p>
       <table class="options-table">
-        <thead><tr><th>Tamanho</th><th>Preço (€)</th><th>Peso (kg)</th><th></th></tr></thead>
+        <thead><tr><th>Variação</th><th>Preço (€)</th><th>Peso (kg)</th><th></th></tr></thead>
         <tbody id="optionRows"></tbody>
       </table>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-ghost btn-sm" id="addOption">+ Tamanho</button>
-        <select id="copyFrom" class="btn btn-ghost btn-sm" aria-label="Copiar tamanhos de outra impressão"></select>
+        <button type="button" class="btn btn-ghost btn-sm" id="addOption">+ Variação</button>
+        <select id="copyFrom" class="btn btn-ghost btn-sm" aria-label="Copiar variações de outro produto"></select>
       </div>
       <p class="hint">O peso (com embalagem) é usado para a etiqueta de envio.</p>
 
       <div class="editor-foot">
-        <button type="button" class="btn btn-danger btn-sm" id="deleteProduct">Apagar impressão</button>
+        <button type="button" class="btn btn-danger btn-sm" id="deleteProduct">Apagar produto</button>
         <span style="display:flex;gap:10px">
           <button type="button" class="btn btn-ghost" id="cancelEdit">Cancelar</button>
           <button class="btn" id="saveProduct">Guardar</button>

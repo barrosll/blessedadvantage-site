@@ -62,7 +62,7 @@ export default async (req) => {
       price_data: {
         currency: "eur",
         unit_amount: size.price,
-        product_data: { name: `${product.title} — ${size.label}` }
+        product_data: { name: `${product.title || "Produto"} — ${size.label}` }
       }
     });
   }

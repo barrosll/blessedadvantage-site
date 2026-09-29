@@ -1,54 +1,144 @@
 {
-  "shipping": { "label": "CTT · entrega ao domicílio", "price": 450, "freeFrom": 6000, "days": [2, 4] },
+  "shipping": {
+    "label": "CTT · entrega ao domicílio",
+    "price": 450,
+    "freeFrom": 6000,
+    "days": [
+      2,
+      4
+    ]
+  },
   "products": [
     {
-      "id": "aurora", "title": "Aurora", "visible": true, "image": "images/print-1.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 },
-        { "id": "50x70", "label": "50 × 70 cm", "price": 5500, "weight": 0.5 }
-      ]
+      "id": "produto-01",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-01-1.jpg",
+        "images/produtos/produto-01-2.jpg"
+      ],
+      "description": "",
+      "options": []
     },
     {
-      "id": "vinha", "title": "Vinha", "visible": true, "image": "images/print-2.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 }
-      ]
+      "id": "produto-02",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-02-1.jpg"
+      ],
+      "description": "",
+      "options": []
     },
     {
-      "id": "serra", "title": "Serra", "visible": true, "image": "images/print-3.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 }
-      ]
+      "id": "produto-03",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-03-1.jpg"
+      ],
+      "description": "",
+      "options": []
     },
     {
-      "id": "crepusculo", "title": "Crepúsculo", "visible": true, "image": "images/print-4.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 }
-      ]
+      "id": "produto-04",
+      "title": "",
+      "visible": false,
+      "images": [
+        "images/produtos/produto-04-1.jpg"
+      ],
+      "description": "",
+      "options": []
     },
     {
-      "id": "mare", "title": "Maré", "visible": true, "image": "images/print-5.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 }
-      ]
+      "id": "produto-05",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-05-1.jpg"
+      ],
+      "description": "",
+      "options": []
     },
     {
-      "id": "terra", "title": "Terra", "visible": true, "image": "images/print-6.svg",
-      "description": "Impressão giclée em papel fine art mate de 230 g.",
-      "options": [
-        { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
-        { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 }
-      ]
+      "id": "produto-06",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-06-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-07",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-07-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-08",
+      "title": "",
+      "visible": false,
+      "images": [
+        "images/produtos/produto-08-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-09",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-09-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-10",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-10-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-11",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-11-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-12",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-12-1.jpg"
+      ],
+      "description": "",
+      "options": []
+    },
+    {
+      "id": "produto-13",
+      "title": "",
+      "visible": true,
+      "images": [
+        "images/produtos/produto-13-1.jpg"
+      ],
+      "description": "",
+      "options": []
     }
   ]
 }

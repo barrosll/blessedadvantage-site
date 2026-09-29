@@ -17,6 +17,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
 img { max-width: 100%; display: block; }
@@ -57,7 +58,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; let
   max-width: 1200px; margin: 0 auto; padding: 24px clamp(16px, 4vw, 48px) 64px;
 }
 .card { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.card img { aspect-ratio: 5 / 7; object-fit: cover; width: 100%; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.08); transition: transform .3s; }
+.card img, .img-empty { aspect-ratio: 1 / 1; background: var(--line); object-fit: cover; width: 100%; border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.08); transition: transform .3s; }
 .card:hover img { transform: translateY(-4px); }
 .card h3 { font-size: 1.4rem; margin: 14px 0 0; }
 .card p { margin: 0; color: var(--muted); font-size: .92rem; }
@@ -77,7 +78,12 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; let
 .dialog-close { position: absolute; top: 8px; right: 12px; }
 .dialog-close button, .icon-btn { font-size: 1.8rem; line-height: 1; background: none; border: 0; cursor: pointer; color: var(--muted); }
 .product-layout { display: grid; gap: 32px; grid-template-columns: 1fr 1fr; align-items: start; }
-.product-layout img { border-radius: 4px; aspect-ratio: 5 / 7; object-fit: cover; width: 100%; }
+#dlgImage { border-radius: 6px; width: 100%; max-height: 70vh; object-fit: contain; background: var(--bg); }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.thumbs button { padding: 0; border: 2px solid transparent; border-radius: 6px; background: none; cursor: pointer; overflow: hidden; }
+.thumbs button.active { border-color: var(--accent); }
+.thumbs img { width: 64px; height: 64px; object-fit: cover; display: block; }
+.soon { font-weight: 600; color: var(--muted); margin: 8px 0 0; }
 .product-layout h2 { font-size: 2.2rem; }
 .sizes { border: 0; padding: 0; margin: 20px 0; display: grid; gap: 8px; }
 .sizes legend { font-weight: 600; margin-bottom: 8px; }
@@ -93,7 +99,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; let
 .drawer-head h2 { margin: 0; }
 .cart-items { list-style: none; margin: 0; padding: 8px 20px; overflow-y: auto; flex: 1; }
 .cart-items li { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.cart-items img { width: 64px; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 3px; }
+.cart-items img { width: 64px; aspect-ratio: 1 / 1; background: var(--line); object-fit: cover; border-radius: 3px; }
 .cart-items .name { font-weight: 600; }
 .qty { display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; }
 .qty button { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 50%; background: none; cursor: pointer; font: inherit; line-height: 1; }
@@ -116,7 +122,7 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; let
 
 @media (max-width: 700px) {
   .product-layout { grid-template-columns: 1fr; gap: 16px; }
-  .product-layout img { max-height: 45vh; width: auto; margin: 0 auto; }
+  #dlgImage { max-height: 45vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {

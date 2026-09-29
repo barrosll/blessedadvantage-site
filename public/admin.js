@@ -2,7 +2,7 @@
   var PW_KEY = "ba-admin";
   var MAX_SIDE = 2000; // píxeis no lado maior depois de reduzir a foto
   var catalog = null;
-  var editing = null; // cópia da impressão aberta no editor
+  var editing = null; // cópia do produto aberto no editor
   var editingIndex = -1; // -1 = nova
 
   var $ = function (id) { return document.getElementById(id); };
@@ -98,7 +98,7 @@
 
   // ---------- Lista ----------
   function priceRange(p) {
-    if (!p.options.length) return "sem tamanhos";
+    if (!p.options.length) return "sem preço";
     var prices = p.options.map(function (o) { return o.price; });
     var min = Math.min.apply(null, prices), max = Math.max.apply(null, prices);
     return min === max ? euro.format(min / 100) : euro.format(min / 100) + " – " + euro.format(max / 100);
@@ -107,14 +107,16 @@
     var n = catalog.products.length;
     $("productList").innerHTML = n ? catalog.products.map(function (p, i) {
       return '<div class="item">' +
-        (p.image ? '<img src="' + esc(p.image) + '" alt="">' : '<div class="thumb-empty"></div>') +
-        '<div><div class="title">' + esc(p.title) + (p.visible ? "" : '<span class="badge">escondida</span>') + '</div>' +
-        '<div class="muted small">' + priceRange(p) + ' · ' + p.options.length + ' tamanho(s)</div></div>' +
+        (p.images[0] ? '<img src="' + esc(p.images[0]) + '" alt="">' : '<div class="thumb-empty"></div>') +
+        '<div><div class="title">' + (p.title ? esc(p.title) : '<span class="muted">(sem nome)</span>') +
+        (p.visible ? "" : '<span class="badge">escondido</span>') + '</div>' +
+        '<div class="muted small">' + (p.options.length ? priceRange(p) + ' · ' + p.options.length + ' variação(ões)' : 'sem preço · aparece como “Em breve”') +
+        ' · ' + p.images.length + ' foto(s)</div></div>' +
         '<div class="actions">' +
         '<button class="icon" data-move="-1" data-i="' + i + '" aria-label="Subir"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
         '<button class="icon" data-move="1" data-i="' + i + '" aria-label="Descer"' + (i === n - 1 ? " disabled" : "") + '>↓</button>' +
         '<button class="btn btn-ghost btn-sm" data-edit="' + i + '">Editar</button></div></div>';
-    }).join("") : '<p class="muted">Ainda não há impressões. Clique em “+ Nova impressão”.</p>';
+    }).join("") : '<p class="muted">Ainda não há produtos. Clique em “+ Novo produto”.</p>';
   }
   $("productList").addEventListener("click", function (e) {
     var b = e.target.closest("button");
@@ -156,42 +158,51 @@
   function openEditor(index) {
     editingIndex = index;
     editing = index >= 0 ? clone(catalog.products[index]) : {
-      id: "", title: "", description: "", image: "", visible: true, options: []
+      id: "", title: "", description: "", images: [], visible: true, options: []
     };
-    if (index < 0 && catalog.products[0]) editing.options = clone(catalog.products[0].options);
-    if (!editing.options.length) addOptionRow();
 
-    $("editorTitle").textContent = index >= 0 ? "Editar impressão" : "Nova impressão";
+    $("editorTitle").textContent = index >= 0 ? "Editar produto" : "Novo produto";
     $("fTitle").value = editing.title;
     $("fDesc").value = editing.description;
     $("fVisible").checked = editing.visible;
     $("deleteProduct").hidden = index < 0;
     $("editorError").textContent = "";
-    $("photoStatus").textContent = "JPG, PNG ou WebP. A foto é reduzida automaticamente antes de ser enviada.";
+    $("photoStatus").textContent = "Pode escolher várias de uma vez. A primeira é a principal; use ★ para mudar.";
     renderPhoto();
     renderOptions();
     renderCopyFrom();
     $("editor").showModal();
   }
   function renderPhoto() {
-    $("photoPreview").innerHTML = editing.image
-      ? '<img src="' + esc(editing.image) + '" alt="" style="width:140px;aspect-ratio:5/7;object-fit:cover;border-radius:4px">'
-      : '<div class="thumb-empty"></div>';
+    $("photoPreview").innerHTML = editing.images.length ? editing.images.map(function (src, i) {
+      return '<figure class="ph">' + '<img src="' + esc(src) + '" alt="">' +
+        (i === 0 ? '<span class="ph-main">principal</span>' : '<button type="button" class="ph-btn ph-left" data-first="' + i + '" title="Tornar principal">★</button>') +
+        '<button type="button" class="ph-btn ph-del" data-delphoto="' + i + '" title="Remover foto" aria-label="Remover foto">×</button></figure>';
+    }).join("") : '<p class="muted small" style="margin:0">Ainda sem fotos.</p>';
   }
+  $("photoPreview").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.delphoto) editing.images.splice(Number(b.dataset.delphoto), 1);
+    if (b.dataset.first) editing.images.unshift(editing.images.splice(Number(b.dataset.first), 1)[0]);
+    renderPhoto();
+  });
   function renderOptions() {
+    document.querySelector(".options-table thead").hidden = editing.options.length === 0;
     $("optionRows").innerHTML = editing.options.map(function (o, i) {
       return '<tr>' +
-        '<td><input type="text" data-f="label" data-i="' + i + '" value="' + esc(o.label) + '" placeholder="ex.: A4 · 21 × 29,7 cm" maxlength="80"></td>' +
+        '<td><input type="text" data-f="label" data-i="' + i + '" value="' + esc(o.label) + '" placeholder="ex.: Preto · 20 cm" maxlength="80"></td>' +
         '<td><input type="text" data-f="price" data-i="' + i + '" value="' + (o.price ? toEuros(o.price) : "") + '" inputmode="decimal" placeholder="25,00"></td>' +
         '<td><input type="text" data-f="weight" data-i="' + i + '" value="' + String(o.weight).replace(".", ",") + '" inputmode="decimal"></td>' +
-        '<td><button type="button" class="icon" data-remove="' + i + '" aria-label="Remover tamanho">×</button></td></tr>';
+        '<td><button type="button" class="icon" data-remove="' + i + '" aria-label="Remover variação">×</button></td></tr>';
     }).join("");
   }
   function renderCopyFrom() {
-    var others = catalog.products.filter(function (p, i) { return i !== editingIndex && p.options.length; });
+    var others = catalog.products.map(function (p, i) { return { p: p, i: i }; })
+      .filter(function (x) { return x.i !== editingIndex && x.p.options.length; });
     $("copyFrom").hidden = others.length === 0;
-    $("copyFrom").innerHTML = '<option value="">Copiar tamanhos de…</option>' + others.map(function (p) {
-      return '<option value="' + esc(p.id) + '">' + esc(p.title) + '</option>';
+    $("copyFrom").innerHTML = '<option value="">Copiar variações de…</option>' + others.map(function (x) {
+      return '<option value="' + esc(x.p.id) + '">' + esc(x.p.title || "Produto " + (x.i + 1)) + '</option>';
     }).join("");
   }
   function addOptionRow() {
@@ -214,7 +225,7 @@
   $("addOption").addEventListener("click", function () { addOptionRow(); renderOptions(); });
   $("copyFrom").addEventListener("change", function () {
     var src = catalog.products.find(function (p) { return p.id === $("copyFrom").value; });
-    if (src) { editing.options = clone(src.options); renderOptions(); toast("Tamanhos copiados de " + src.title); }
+    if (src) { editing.options = clone(src.options); renderOptions(); toast("Variações copiadas"); }
     $("copyFrom").value = "";
   });
   $("cancelEdit").addEventListener("click", function () { $("editor").close(); });
@@ -241,19 +252,24 @@
     });
   }
   $("photoInput").addEventListener("change", function () {
-    var file = $("photoInput").files[0];
-    if (!file) return;
-    $("photoStatus").textContent = "A enviar foto…";
+    var files = [].slice.call($("photoInput").files);
+    if (!files.length) return;
+    var done = 0, failed = 0;
     $("saveProduct").disabled = true;
-    resizeImage(file).then(function (blob) {
-      return api("/api/admin/upload", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
-    }).then(function (res) {
-      editing.image = res.url;
-      renderPhoto();
-      $("photoStatus").textContent = "Foto carregada. Clique em Guardar para aplicar.";
-    }).catch(function (err) {
-      $("photoStatus").textContent = err.message;
-    }).then(function () {
+    $("photoStatus").textContent = "A enviar " + files.length + " foto(s)…";
+    // Envia uma de cada vez, pela ordem escolhida
+    files.reduce(function (chain, file) {
+      return chain.then(function () {
+        return resizeImage(file).then(function (blob) {
+          return api("/api/admin/upload", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
+        }).then(function (res) {
+          editing.images.push(res.url);
+          done++;
+          renderPhoto();
+        }).catch(function () { failed++; });
+      });
+    }, Promise.resolve()).then(function () {
+      $("photoStatus").textContent = done + " foto(s) carregada(s)" + (failed ? ", " + failed + " falharam" : "") + ". Clique em Guardar para aplicar.";
       $("saveProduct").disabled = false;
       $("photoInput").value = "";
     });
@@ -264,11 +280,11 @@
     editing.title = $("fTitle").value.trim();
     editing.description = $("fDesc").value.trim();
     editing.visible = $("fVisible").checked;
-    if (!editing.id) editing.id = slug(editing.title) + "-" + randomId(4);
+    if (!editing.id) editing.id = slug(editing.title || "produto") + "-" + randomId(4);
 
     for (var i = 0; i < editing.options.length; i++) {
       var o = editing.options[i];
-      if (!o.label.trim()) { $("editorError").textContent = "Preencha o nome de todos os tamanhos."; return; }
+      if (!o.label.trim()) { $("editorError").textContent = "Preencha o nome de todas as variações."; return; }
       if (!(o.price > 0)) { $("editorError").textContent = "Preço inválido em “" + o.label + "”."; return; }
       if (!(o.weight > 0)) { $("editorError").textContent = "Peso inválido em “" + o.label + "”."; return; }
     }
@@ -286,10 +302,10 @@
   });
 
   $("deleteProduct").addEventListener("click", function () {
-    if (!confirm("Apagar “" + editing.title + "”? Esta ação não pode ser desfeita.")) return;
+    if (!confirm("Apagar este produto? Esta ação não pode ser desfeita.")) return;
     var next = clone(catalog);
     next.products.splice(editingIndex, 1);
-    save(next, "Impressão apagada").then(function () { $("editor").close(); })
+    save(next, "Produto apagado").then(function () { $("editor").close(); })
       .catch(function (err) { $("editorError").textContent = err.message; });
   });
 

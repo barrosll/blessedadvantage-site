@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Blessed Advantage — Impressões de arte</title>
-  <meta name="description" content="Impressões de arte em papel fine art, enviadas por CTT para todo Portugal.">
+  <title>Blessed Advantage — Impressão 3D</title>
+  <meta name="description" content="Peças impressas em 3D: decoração, figuras e objetos úteis para casa. Envio por CTT para todo Portugal.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,17 +23,17 @@
   <main>
     <section class="hero">
       <img class="hero-logo" src="images/logo.png" alt="Blessed Advantage">
-      <p class="eyebrow">Impressões de arte</p>
-      <h1>Arte para as suas paredes,<br>impressa com cuidado.</h1>
-      <p class="lead">Papel fine art, tintas de pigmento e envio protegido por CTT para todo Portugal.</p>
-      <a class="btn" href="#galeria">Ver coleção</a>
+      <p class="eyebrow">Impressão 3D</p>
+      <h1>Peças únicas,<br>impressas camada a camada.</h1>
+      <p class="lead">Decoração, figuras e objetos úteis para casa, impressos em 3D em Portugal e enviados por CTT.</p>
+      <a class="btn" href="#galeria">Ver produtos</a>
     </section>
 
     <section id="galeria" class="gallery" aria-label="Coleção"></section>
 
     <section class="info">
-      <div><h3>Papel fine art</h3><p>Impressão giclée em papel mate de 230 g, com cores que duram décadas.</p></div>
-      <div><h3>Envio protegido</h3><p>Enviamos em tubo ou em envelope rígido, com seguimento CTT.</p></div>
+      <div><h3>Feito por encomenda</h3><p>Cada peça é impressa em 3D e acabada à mão, com atenção ao detalhe.</p></div>
+      <div><h3>Envio protegido</h3><p>Embalado com cuidado e enviado por CTT, com código de seguimento.</p></div>
       <div><h3>Pagamento seguro</h3><p>MB WAY, Multibanco ou cartão, através da Stripe.</p></div>
     </section>
   </main>
@@ -46,13 +46,17 @@
   <dialog class="product-dialog" id="productDialog">
     <form method="dialog" class="dialog-close"><button aria-label="Fechar">×</button></form>
     <div class="product-layout">
-      <img id="dlgImage" alt="">
+      <div class="photos">
+        <img id="dlgImage" alt="">
+        <div class="thumbs" id="dlgThumbs"></div>
+      </div>
       <div>
         <h2 id="dlgTitle"></h2>
         <p id="dlgDesc" class="muted"></p>
-        <fieldset class="sizes" id="dlgSizes"><legend>Tamanho</legend></fieldset>
+        <fieldset class="sizes" id="dlgSizes"><legend>Opção</legend></fieldset>
         <p class="price" id="dlgPrice"></p>
         <button class="btn btn-block" id="dlgAdd">Adicionar ao carrinho</button>
+        <p class="soon" id="dlgSoon" hidden>Disponível em breve.</p>
       </div>
     </div>
   </dialog>

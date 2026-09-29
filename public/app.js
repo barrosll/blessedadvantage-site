@@ -25,14 +25,16 @@
   // Galeria
   function renderGallery() {
     if (!catalog.products.length) {
-      $("galeria").innerHTML = '<p class="muted">Novas impressões em breve.</p>';
+      $("galeria").innerHTML = '<p class="muted">Novos produtos em breve.</p>';
       return;
     }
     $("galeria").innerHTML = catalog.products.map(function (p) {
-      var from = Math.min.apply(null, p.options.map(function (o) { return o.price; }));
+      var price = p.options.length
+        ? (p.options.length > 1 ? "desde " : "") + money(Math.min.apply(null, p.options.map(function (o) { return o.price; })))
+        : "Em breve";
       return '<button class="card" data-id="' + esc(p.id) + '">' +
-        '<img src="' + esc(p.image) + '" alt="' + esc(p.title) + '" loading="lazy">' +
-        '<h3>' + esc(p.title) + '</h3><p>' + (p.options.length > 1 ? "desde " : "") + money(from) + '</p></button>';
+        (p.images[0] ? '<img src="' + esc(p.images[0]) + '" alt="' + esc(p.title) + '" loading="lazy">' : '<div class="img-empty"></div>') +
+        (p.title ? '<h3>' + esc(p.title) + '</h3>' : "") + '<p>' + price + '</p></button>';
     }).join("");
   }
 
@@ -40,16 +42,33 @@
   function openProduct(id) {
     current = findProduct(id);
     if (!current) return;
-    $("dlgImage").src = current.image;
-    $("dlgImage").alt = current.title;
+    $("dlgThumbs").hidden = current.images.length < 2;
+    $("dlgThumbs").innerHTML = current.images.map(function (src, i) {
+      return '<button type="button" data-photo="' + i + '" aria-label="Foto ' + (i + 1) + '"><img src="' + esc(src) + '" alt=""></button>';
+    }).join("");
+    showPhoto(0);
     $("dlgTitle").textContent = current.title;
+    $("dlgTitle").hidden = !current.title;
     $("dlgDesc").textContent = current.description;
-    $("dlgSizes").innerHTML = "<legend>Tamanho</legend>" + current.options.map(function (o, i) {
+
+    // Sem variações = ainda sem preço: mostra "Em breve" em vez do botão de compra
+    var buyable = current.options.length > 0;
+    $("dlgSizes").hidden = current.options.length < 2;
+    $("dlgAdd").hidden = !buyable;
+    $("dlgSoon").hidden = buyable;
+    $("dlgSizes").innerHTML = "<legend>Opção</legend>" + current.options.map(function (o, i) {
       return '<label><span><input type="radio" name="size" value="' + esc(o.id) + '"' + (i === 0 ? " checked" : "") + ">" +
         esc(o.label) + "</span><span>" + money(o.price) + "</span></label>";
     }).join("");
-    updateDialogPrice();
+    $("dlgPrice").textContent = "";
+    if (buyable) updateDialogPrice();
     $("productDialog").showModal();
+  }
+  function showPhoto(i) {
+    $("dlgImage").src = current.images[i] || "";
+    $("dlgImage").alt = current.title;
+    $("dlgImage").hidden = !current.images[i];
+    [].forEach.call($("dlgThumbs").children, function (b, j) { b.classList.toggle("active", i === j); });
   }
   function selectedSize() {
     var input = document.querySelector('#dlgSizes input:checked');
@@ -76,8 +95,8 @@
       var p = findProduct(l.id), s = findOption(p, l.size);
       count += l.qty;
       subtotal += s.price * l.qty;
-      return '<li><img src="' + esc(p.image) + '" alt="">' +
-        '<div><div class="name">' + esc(p.title) + '</div><div class="muted small">' + esc(s.label) + '</div>' +
+      return '<li><img src="' + esc(p.images[0] || "") + '" alt="">' +
+        '<div><div class="name">' + esc(p.title || "Produto") + '</div><div class="muted small">' + esc(s.label) + '</div>' +
         '<div class="qty"><button data-i="' + i + '" data-d="-1" aria-label="Menos">−</button>' + l.qty +
         '<button data-i="' + i + '" data-d="1" aria-label="Mais">+</button></div></div>' +
         '<strong>' + money(s.price * l.qty) + '</strong></li>';
@@ -141,6 +160,10 @@
     if (card) openProduct(card.dataset.id);
   });
   $("dlgSizes").addEventListener("change", updateDialogPrice);
+  $("dlgThumbs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-photo]");
+    if (b) showPhoto(Number(b.dataset.photo));
+  });
   $("dlgAdd").addEventListener("click", addToCart);
   $("cartItems").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-i]");
