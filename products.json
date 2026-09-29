@@ -1,0 +1,19 @@
+{
+  "sizes": [
+    { "id": "a4", "label": "A4 · 21 × 29,7 cm", "price": 2500, "weight": 0.25 },
+    { "id": "a3", "label": "A3 · 29,7 × 42 cm", "price": 3500, "weight": 0.35 },
+    { "id": "50x70", "label": "50 × 70 cm", "price": 5500, "weight": 0.5 }
+  ],
+  "shipping": [
+    { "id": "ctt", "label": "CTT · entrega ao domicílio", "price": 450, "days": [2, 4] },
+    { "id": "ctt-free", "label": "CTT · envio grátis (encomendas acima de 60 €)", "price": 0, "days": [2, 4], "minSubtotal": 6000 }
+  ],
+  "products": [
+    { "id": "aurora", "title": "Aurora", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-1.svg" },
+    { "id": "vinha", "title": "Vinha", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-2.svg" },
+    { "id": "serra", "title": "Serra", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-3.svg" },
+    { "id": "crepusculo", "title": "Crepúsculo", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-4.svg" },
+    { "id": "mare", "title": "Maré", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-5.svg" },
+    { "id": "terra", "title": "Terra", "description": "Impressão giclée em papel fine art mate de 230 g.", "image": "images/print-6.svg" }
+  ]
+}
