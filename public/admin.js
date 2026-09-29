@@ -66,7 +66,103 @@
       renderShipping();
       renderSiteImages();
     }).catch(function (err) { toast(err.message, true); });
+    loadOrders();
   }
+
+  // ---------- Separadores ----------
+  function showTab(name) {
+    [].forEach.call(document.querySelectorAll(".tab"), function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === name)); });
+    $("tab-orders").hidden = name !== "orders";
+    $("tab-products").hidden = name !== "products";
+    try { sessionStorage.setItem("ba-tab", name); } catch (e) {}
+  }
+  document.querySelector(".tabs").addEventListener("click", function (e) {
+    var t = e.target.closest(".tab");
+    if (t) showTab(t.dataset.tab);
+  });
+  try { if (sessionStorage.getItem("ba-tab")) showTab(sessionStorage.getItem("ba-tab")); } catch (e) {}
+
+  // ---------- Encomendas ----------
+  var orders = [];
+  var STATUS = { paga: "Paga", producao: "Em produção", enviada: "Enviada", entregue: "Entregue", cancelada: "Cancelada" };
+  var dateFmt = new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  var dayFmt = new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short" });
+
+  function loadOrders() {
+    return api("/api/admin/orders").then(function (list) {
+      orders = list;
+      renderOrders();
+    }).catch(function (err) { toast(err.message, true); });
+  }
+  function renderOrders() {
+    var open = orders.filter(function (o) { return o.status === "paga" || o.status === "producao"; });
+    $("ordersCount").textContent = open.length || "";
+    var f = $("orderFilter").value;
+    var list = f === "abertas" ? open : f ? orders.filter(function (o) { return o.status === f; }) : orders;
+    if (!list.length) {
+      $("orderList").innerHTML = '<p class="muted">' + (orders.length ? "Nenhuma encomenda neste filtro." : "Ainda não há encomendas. Quando alguém comprar, aparece aqui.") + "</p>";
+      return;
+    }
+    $("orderList").innerHTML = list.map(function (o) {
+      var a = o.address || {};
+      var items = o.items.map(function (it) {
+        return "<li>" + (it.image ? '<img src="' + esc(it.image) + '" alt="">' : "<span></span>") +
+          "<div><strong>" + it.qty + "× " + esc(it.title) + '</strong><div class="muted small">' + esc(it.details) + "</div>" +
+          (it.note ? '<div class="note">Nota: “' + esc(it.note) + "”</div>" : "") + "</div>" +
+          "<span>" + euro.format(it.unitPrice * it.qty / 100) + "</span></li>";
+      }).join("");
+      var warns = (o.emailError ? '<div class="o-warn">Email de confirmação: ' + esc(o.emailError) + "</div>" : "") +
+        (o.sendcloudError ? '<div class="o-warn">Sendcloud: ' + esc(o.sendcloudError) + "</div>" : "");
+      var hasNote = o.items.some(function (it) { return it.note; });
+      return '<details class="order-card" data-token="' + esc(o.token) + '">' +
+        '<summary><span class="num">#' + esc(o.number) + "</span>" +
+        '<span class="who"><div><strong>' + esc(o.name) + "</strong>" + (hasNote ? ' <span class="badge" style="background:#fffbe0;color:#5c5c00">personalizado</span>' : "") + "</div>" +
+        '<div class="muted small">' + o.items.reduce(function (n, it) { return n + it.qty; }, 0) + " peça(s) · " + euro.format(o.total / 100) + " · entrega prevista até " + dayFmt.format(new Date(o.eta[1])) + "</div></span>" +
+        '<span class="muted small when">' + dateFmt.format(new Date(o.createdAt)) + "</span>" +
+        '<span class="st st-' + o.status + '">' + STATUS[o.status] + "</span></summary>" +
+        '<div class="order-body"><div>' + warns +
+          "<h4>Peças</h4><ul class=\"o-items\">" + items + "</ul>" +
+          '<p class="small" style="margin:8px 0 0">Subtotal ' + euro.format(o.subtotal / 100) + (o.discount ? " · Desconto −" + euro.format(o.discount / 100) : "") +
+          " · Envio " + euro.format(o.shipping / 100) + " · <strong>Total " + euro.format(o.total / 100) + "</strong></p>" +
+          '<h4 style="margin-top:18px">Cliente e envio</h4><p class="small" style="margin:0;line-height:1.7">' +
+          esc(a.name) + "<br>" + esc(a.line1) + (a.line2 ? "<br>" + esc(a.line2) : "") + "<br>" + esc(a.postalCode) + " " + esc(a.city) + "<br>" +
+          '<a href="mailto:' + esc(o.email) + '">' + esc(o.email) + "</a> · " + esc(o.phone) + (o.taxId ? "<br>NIF " + esc(o.taxId) : "") + "</p>" +
+        '</div><div class="o-actions">' +
+          '<label class="field"><span>Estado</span><select class="field-select" data-f="status">' +
+            Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (k === o.status ? " selected" : "") + ">" + STATUS[k] + "</option>"; }).join("") +
+          "</select></label>" +
+          '<label class="field"><span>Código CTT</span><input type="text" data-f="tracking" value="' + esc(o.tracking ? o.tracking.number : "") + '" placeholder="ex.: RR123456789PT" autocomplete="off"></label>' +
+          '<p class="hint" style="margin:0">Ao mudar para “Enviada”, o cliente recebe um email com o código CTT.</p>' +
+          '<button class="btn btn-sm" data-act="save">Guardar</button>' +
+          '<button class="btn btn-ghost btn-sm" data-act="resend">Reenviar email de confirmação</button>' +
+          '<a class="btn btn-ghost btn-sm" href="' + esc(o.trackUrl) + '" target="_blank" rel="noopener" style="text-decoration:none">Ver página do cliente ↗</a>' +
+        "</div></div></details>";
+    }).join("");
+  }
+  $("orderFilter").addEventListener("change", renderOrders);
+  $("refreshOrders").addEventListener("click", function () { loadOrders().then(function () { toast("Encomendas atualizadas"); }); });
+  $("orderList").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-act]");
+    if (!b) return;
+    var card = b.closest(".order-card");
+    var payload = { token: card.dataset.token };
+    if (b.dataset.act === "resend") {
+      payload.action = "resend";
+    } else {
+      payload.status = card.querySelector('[data-f="status"]').value;
+      payload.trackingNumber = card.querySelector('[data-f="tracking"]').value;
+    }
+    b.disabled = true;
+    api("/api/admin/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then(function (res) {
+        orders = orders.map(function (o) { return o.token === res.order.token ? res.order : o; });
+        renderOrders();
+        var again = document.querySelector('.order-card[data-token="' + res.order.token + '"]');
+        if (again) again.open = true;
+        toast(res.message);
+      })
+      .catch(function (err) { toast(err.message, true); b.disabled = false; });
+  });
 
   $("loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -178,6 +274,8 @@
     $("shipFree").value = s.freeFrom ? toEuros(s.freeFrom) : "";
     $("shipMin").value = s.days[0];
     $("shipMax").value = s.days[1];
+    $("prodMin").value = (s.productionDays || [3, 5])[0];
+    $("prodMax").value = (s.productionDays || [3, 5])[1];
   }
   $("shippingForm").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -189,7 +287,8 @@
       label: $("shipLabel").value,
       price: price,
       freeFrom: free,
-      days: [Number($("shipMin").value) || 2, Number($("shipMax").value) || 4]
+      days: [Number($("shipMin").value) || 2, Number($("shipMax").value) || 4],
+      productionDays: [Number($("prodMin").value) || 0, Number($("prodMax").value) || 0]
     };
     save(next, "Portes guardados ✓").catch(function (err) { toast(err.message, true); });
   });

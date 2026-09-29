@@ -21,8 +21,29 @@
     <h1>Obrigado pela tua compra!</h1>
     <p class="lead">Vais receber um email de confirmação. Assim que a tua encomenda for enviada, recebes também o código de seguimento CTT.</p>
     <p class="muted small">Pagaste por referência Multibanco? A encomenda começa a ser impressa assim que o pagamento for confirmado.</p>
-    <p style="margin-top:32px"><a class="btn btn-dark" href="/">Voltar à loja</a></p>
+    <p style="margin-top:32px;display:flex;gap:12px;flex-wrap:wrap">
+      <a class="btn btn-lime" id="trackBtn" href="#" hidden>Acompanhar encomenda →</a>
+      <a class="btn btn-outline" href="/">Voltar à loja</a>
+    </p>
   </main>
-  <script>try { localStorage.removeItem("welabb-cart"); } catch (e) {}</script>
+  <script>
+    try { localStorage.removeItem("welabb-cart"); } catch (e) {}
+    // O aviso da Stripe pode demorar uns segundos: tenta encontrar a encomenda algumas vezes
+    (function () {
+      var session = new URLSearchParams(location.search).get("session_id");
+      if (!session) return;
+      var tries = 0;
+      (function poll() {
+        fetch("/api/order?session=" + encodeURIComponent(session)).then(function (r) { return r.json(); }).then(function (d) {
+          if (d.token) {
+            document.querySelector(".label").textContent = "Encomenda #" + d.number;
+            var b = document.getElementById("trackBtn");
+            b.href = "/encomenda.html?t=" + d.token;
+            b.hidden = false;
+          } else if (++tries < 10) setTimeout(poll, 2000);
+        }).catch(function () {});
+      })();
+    })();
+  </script>
 </body>
 </html>

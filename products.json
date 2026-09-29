@@ -6,6 +6,10 @@
     "days": [
       2,
       4
+    ],
+    "productionDays": [
+      3,
+      5
     ]
   },
   "categories": [

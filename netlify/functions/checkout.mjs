@@ -43,6 +43,7 @@ export default async (req) => {
   if (items.length > 40) return json({ error: "Demasiados produtos diferentes no carrinho" }, 400);
 
   const catalog = publicCatalog(await loadCatalog());
+  const siteUrl = Netlify.env.get("URL") || new URL(req.url).origin;
   const lineItems = [];
   const summary = [];
   const notes = {}; // notas de personalização, uma por linha, em metadata
@@ -81,7 +82,10 @@ export default async (req) => {
         unit_amount: size.price,
         product_data: {
           name: `${product.title || "Produto"} — ${details}`,
-          description: note ? `Nota: ${note}` : undefined
+          description: note ? `Nota: ${note}` : undefined,
+          images: product.images[0] ? [new URL(product.images[0], siteUrl + "/").href] : undefined,
+          // Usado pelo webhook para montar a encomenda e o email
+          metadata: { product_id: product.id, title: product.title || "Produto", details, note }
         }
       }
     });
@@ -102,8 +106,6 @@ export default async (req) => {
       }
     }
   ];
-
-  const siteUrl = Netlify.env.get("URL") || new URL(req.url).origin;
 
   const params = toForm({
     mode: "payment",

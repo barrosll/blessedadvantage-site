@@ -56,6 +56,14 @@ export const MAX_NOTE = 300;
 const IMAGE_PATH = /^(\/img\/[a-z0-9-]+|images\/[\w-]+(\/[\w-]+)*\.(jpe?g|png|webp|svg))$/i;
 const MAX_IMAGES = 12;
 
+// Intervalo de dias [mín, máx] válido (aceita 0 quando min=0), com mín ≤ máx
+function dayRange(v, fallback, min) {
+  const n = (x, d) => (x === "" || x == null || !Number.isFinite(Number(x)) ? d : Math.min(60, Math.max(min, Math.round(Number(x)))));
+  const a = n(v && v[0], fallback[0]);
+  const b = n(v && v[1], fallback[1]);
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
 const text = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
 const cents = (v) => Math.round(Number(v));
 
@@ -70,8 +78,10 @@ export function sanitizeCatalog(input) {
     label: text(s.label, 80) || "CTT · entrega ao domicílio",
     price: cents(s.price),
     freeFrom: s.freeFrom ? cents(s.freeFrom) : 0,
-    days: [Math.max(1, cents(s.days && s.days[0]) || 2), Math.max(1, cents(s.days && s.days[1]) || 4)]
+    days: [Math.max(1, cents(s.days && s.days[0]) || 2), Math.max(1, cents(s.days && s.days[1]) || 4)],
+    productionDays: dayRange(s.productionDays, [3, 5], 0)
   };
+  shipping.days = dayRange(shipping.days, [2, 4], 1);
   if (!(shipping.price >= 0 && shipping.price <= 10000)) throw new Error("Preço de envio inválido");
   if (!(shipping.freeFrom >= 0)) throw new Error("Valor de envio grátis inválido");
 
