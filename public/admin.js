@@ -64,6 +64,7 @@
       catalog = data;
       renderList();
       renderShipping();
+      renderSiteImages();
     }).catch(function (err) { toast(err.message, true); });
   }
 
@@ -90,6 +91,7 @@
       catalog = saved;
       renderList();
       renderShipping();
+      renderSiteImages();
       toast(okMessage || "Guardado ✓");
       return saved;
     });
@@ -132,6 +134,39 @@
       var tmp = next.products[i]; next.products[i] = next.products[j]; next.products[j] = tmp;
       save(next, "Ordem guardada ✓").catch(function (err) { toast(err.message, true); });
     }
+  });
+
+  // ---------- Imagens do site ----------
+  function renderSiteImages() {
+    var site = catalog.site || {};
+    [].forEach.call(document.querySelectorAll("#siteImages .slot"), function (slot) {
+      var custom = site[slot.dataset.key];
+      slot.querySelector("img").src = custom || slot.dataset.default;
+      slot.querySelector("[data-reset]").hidden = !custom;
+    });
+  }
+  function saveSiteImage(key, value, message) {
+    var next = clone(catalog);
+    next.site = Object.assign({}, next.site);
+    if (value) next.site[key] = value; else delete next.site[key];
+    return save(next, message);
+  }
+  $("siteImages").addEventListener("change", function (e) {
+    var input = e.target, slot = input.closest(".slot");
+    if (!input.files || !input.files[0]) return;
+    toast("A enviar imagem…");
+    resizeImage(input.files[0]).then(function (blob) {
+      return api("/api/admin/upload", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
+    }).then(function (res) {
+      return saveSiteImage(slot.dataset.key, res.url, "Imagem do site atualizada ✓");
+    }).catch(function (err) { toast(err.message, true); })
+      .then(function () { input.value = ""; });
+  });
+  $("siteImages").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-reset]");
+    if (!b) return;
+    saveSiteImage(b.closest(".slot").dataset.key, "", "Imagem original reposta")
+      .catch(function (err) { toast(err.message, true); });
   });
 
   // ---------- Portes ----------

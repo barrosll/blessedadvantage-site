@@ -258,6 +258,9 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       catalog = data;
+      // Imagens do site escolhidas na gestão
+      if (data.site && data.site.heroImage) $("heroImg").src = data.site.heroImage;
+      if (data.site && data.site.processImage) $("processImg").src = data.site.processImage;
       renderCategories();
       renderFilters();
       renderGallery();

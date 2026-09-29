@@ -64,6 +64,10 @@
     .check { display: flex; gap: 8px; align-items: center; margin: 8px 0 18px; }
     .check input { width: 18px; height: 18px; accent-color: var(--accent); }
     .editor-foot { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
+    .site-images { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .slot { display: grid; gap: 10px; align-content: start; justify-items: start; }
+    .slot img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--line); border: 1px solid var(--line); }
+    .slot .hint { margin: 0; }
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy); color: var(--on-navy); padding: 10px 20px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--error); color: #fff; }
@@ -101,6 +105,24 @@
     </div>
     <p class="hint">A ordem aqui é a ordem na loja. As alterações ficam visíveis na loja assim que guarda.</p>
     <div class="list" id="productList"></div>
+
+    <h2>Imagens do site</h2>
+    <div class="panel site-images" id="siteImages">
+      <div class="slot" data-key="heroImage" data-default="images/hero-impressora.jpg">
+        <strong>Topo da página (hero)</strong>
+        <img alt="">
+        <p class="hint">Vertical ou quadrada, com pelo menos 1200 px de altura.</p>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">Trocar imagem<input type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
+        <button type="button" class="btn btn-ghost btn-sm" data-reset>Repor original</button>
+      </div>
+      <div class="slot" data-key="processImage" data-default="images/produtos/produto-09-1.jpg">
+        <strong>Secção “O processo”</strong>
+        <img alt="">
+        <p class="hint">Horizontal (16:10), com pelo menos 1600 px de largura.</p>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">Trocar imagem<input type="file" accept="image/jpeg,image/png,image/webp" hidden></label>
+        <button type="button" class="btn btn-ghost btn-sm" data-reset>Repor original</button>
+      </div>
+    </div>
 
     <h2>Portes de envio</h2>
     <form class="panel" id="shippingForm">

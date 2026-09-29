@@ -18,6 +18,7 @@ export async function loadCatalog() {
   return {
     ...catalog,
     categories: catalog.categories || seed.categories,
+    site: catalog.site || {},
     products: catalog.products.map(normalizeImages)
   };
 }
@@ -32,6 +33,7 @@ export function publicCatalog(catalog) {
   return {
     shipping: catalog.shipping,
     categories: catalog.categories || seed.categories,
+    site: catalog.site || {},
     products: catalog.products.filter((p) => p.visible).map(normalizeImages)
   };
 }
@@ -105,5 +107,14 @@ export function sanitizeCatalog(input) {
     return { id, title, category, visible: Boolean(p.visible), images, description: text(p.description, 2000), options };
   });
 
-  return { shipping, categories, products };
+  // Imagens do site (hero e processo); vazio = imagem original
+  const siteIn = input.site || {};
+  const site = {};
+  for (const key of ["heroImage", "processImage"]) {
+    const v = text(siteIn[key], 200);
+    if (v && !IMAGE_PATH.test(v)) throw new Error("Imagem do site inválida");
+    if (v) site[key] = v;
+  }
+
+  return { shipping, categories, site, products };
 }
