@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão — Blessed Advantage</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="images/favicon.png">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .admin { max-width: 960px; margin: 0 auto; padding: 32px 16px 96px; }
+    .admin h1 { font-size: 1.8rem; }
+    .admin h2 { font-size: 1.2rem; margin-top: 40px; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+    .login { max-width: 380px; margin: 12vh auto; }
+    label.field { display: block; margin-bottom: 14px; font-weight: 500; font-size: .92rem; }
+    label.field span { display: block; margin-bottom: 6px; }
+    input[type=text], input[type=password], input[type=number], textarea {
+      width: 100%; font: inherit; color: var(--text); background: var(--surface);
+      border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px;
+    }
+    input:focus, textarea:focus { outline: 2px solid var(--steel); outline-offset: 1px; }
+    textarea { min-height: 90px; resize: vertical; }
+    .grid-2 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .btn-ghost { background: none; color: var(--accent); border: 1px solid var(--line); }
+    .btn-danger { background: none; color: var(--error); border: 1px solid currentColor; }
+    .btn-sm { padding: 6px 14px; font-size: .9rem; }
+    .list { display: grid; gap: 10px; margin-top: 12px; }
+    .item { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+    .item img, .thumb-empty { width: 56px; aspect-ratio: 5 / 7; object-fit: cover; border-radius: 4px; background: var(--line); }
+    .item .title { font-weight: 600; }
+    .item .actions { display: flex; gap: 6px; align-items: center; }
+    .icon { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 1rem; color: var(--text); }
+    .icon:disabled { opacity: .3; cursor: default; }
+    .badge { display: inline-block; font-size: .75rem; padding: 1px 8px; border-radius: 999px; background: #fdecea; color: var(--error); margin-left: 6px; vertical-align: middle; }
+    .editor { width: min(760px, calc(100% - 24px)); }
+    .photo { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: center; margin-bottom: 18px; }
+    .photo img, .photo .thumb-empty { width: 140px; }
+    .options-table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+    .options-table th { text-align: left; font-size: .8rem; font-weight: 600; color: var(--muted); padding: 4px 6px; }
+    .options-table td { padding: 4px 6px; }
+    .options-table td:nth-child(2), .options-table td:nth-child(3) { width: 110px; }
+    .options-table td:last-child { width: 40px; }
+    .check { display: flex; gap: 8px; align-items: center; margin: 8px 0 18px; }
+    .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+    .editor-foot { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy); color: var(--on-navy); padding: 10px 20px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
+    .toast.show { opacity: 1; }
+    .toast.err { background: var(--error); color: #fff; }
+    .hint { font-size: .85rem; color: var(--muted); margin: 4px 0 0; }
+    @media (max-width: 560px) {
+      .photo { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 48px 1fr; }
+      .item .actions { grid-column: 1 / -1; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="images/logo-180.png" alt="">Gestão da loja</a>
+    <div id="topActions" hidden>
+      <a class="cart-button" href="/" target="_blank" style="text-decoration:none">Ver loja ↗</a>
+      <button class="cart-button" id="logout">Sair</button>
+    </div>
+  </header>
+
+  <!-- Entrar -->
+  <main class="admin" id="loginView">
+    <form class="panel login" id="loginForm">
+      <h1>Entrar</h1>
+      <label class="field"><span>Password</span><input type="password" id="password" autocomplete="current-password" required autofocus></label>
+      <button class="btn btn-block">Entrar</button>
+      <p class="error" id="loginError" role="alert"></p>
+    </form>
+  </main>
+
+  <!-- Gestão -->
+  <main class="admin" id="mainView" hidden>
+    <div class="toolbar">
+      <h1>Impressões</h1>
+      <button class="btn" id="newProduct">+ Nova impressão</button>
+    </div>
+    <p class="hint">A ordem aqui é a ordem na loja. As alterações ficam visíveis na loja assim que guarda.</p>
+    <div class="list" id="productList"></div>
+
+    <h2>Portes de envio</h2>
+    <form class="panel" id="shippingForm">
+      <div class="grid-2">
+        <label class="field"><span>Nome do envio</span><input type="text" id="shipLabel" maxlength="80"></label>
+        <label class="field"><span>Preço (€)</span><input type="text" id="shipPrice" inputmode="decimal"></label>
+        <label class="field"><span>Grátis a partir de (€)</span><input type="text" id="shipFree" inputmode="decimal" placeholder="vazio = nunca"></label>
+        <label class="field"><span>Prazo (dias úteis)</span>
+          <span style="display:flex;gap:8px;align-items:center;margin:0"><input type="number" id="shipMin" min="1" max="30"> a <input type="number" id="shipMax" min="1" max="30"></span>
+        </label>
+      </div>
+      <button class="btn btn-sm">Guardar portes</button>
+    </form>
+  </main>
+
+  <!-- Editor de impressão -->
+  <dialog class="product-dialog editor" id="editor">
+    <form method="dialog" class="dialog-close"><button aria-label="Fechar">×</button></form>
+    <form id="editorForm">
+      <h2 id="editorTitle" style="margin-top:0">Impressão</h2>
+      <div class="photo">
+        <div id="photoPreview"></div>
+        <div>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer">Escolher foto<input type="file" id="photoInput" accept="image/jpeg,image/png,image/webp" hidden></label>
+          <p class="hint" id="photoStatus">JPG, PNG ou WebP. A foto é reduzida automaticamente antes de ser enviada.</p>
+        </div>
+      </div>
+      <label class="field"><span>Título</span><input type="text" id="fTitle" maxlength="120" required></label>
+      <label class="field"><span>Descrição</span><textarea id="fDesc" maxlength="2000"></textarea></label>
+      <label class="check"><input type="checkbox" id="fVisible"> Visível na loja</label>
+
+      <strong>Tamanhos e preços</strong>
+      <table class="options-table">
+        <thead><tr><th>Tamanho</th><th>Preço (€)</th><th>Peso (kg)</th><th></th></tr></thead>
+        <tbody id="optionRows"></tbody>
+      </table>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost btn-sm" id="addOption">+ Tamanho</button>
+        <select id="copyFrom" class="btn btn-ghost btn-sm" aria-label="Copiar tamanhos de outra impressão"></select>
+      </div>
+      <p class="hint">O peso (com embalagem) é usado para a etiqueta de envio.</p>
+
+      <div class="editor-foot">
+        <button type="button" class="btn btn-danger btn-sm" id="deleteProduct">Apagar impressão</button>
+        <span style="display:flex;gap:10px">
+          <button type="button" class="btn btn-ghost" id="cancelEdit">Cancelar</button>
+          <button class="btn" id="saveProduct">Guardar</button>
+        </span>
+      </div>
+      <p class="error" id="editorError" role="alert"></p>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="admin.js"></script>
+</body>
+</html>

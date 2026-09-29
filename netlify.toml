@@ -1,11 +1,12 @@
 [build]
-  publish = "."
+  publish = "public"
   functions = "netlify/functions"
 
 [functions]
   node_bundler = "esbuild"
 
 [[headers]]
-  for = "/products.json"
+  for = "/admin*"
   [headers.values]
-    Cache-Control = "public, max-age=300"
+    X-Robots-Tag = "noindex"
+    X-Frame-Options = "DENY"

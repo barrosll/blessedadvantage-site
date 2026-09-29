@@ -1,6 +1,6 @@
 // Cria uma sessão de pagamento na Stripe (MB WAY, Multibanco, cartão...).
-// Os preços vêm SEMPRE do products.json no servidor, nunca do browser.
-import catalog from "../../products.json";
+// Os preços vêm SEMPRE do catálogo no servidor, nunca do browser.
+import { loadCatalog, publicCatalog } from "../lib/catalog.mjs";
 
 export const config = { path: "/api/checkout" };
 
@@ -41,6 +41,7 @@ export default async (req) => {
   const items = Array.isArray(body.items) ? body.items : [];
   if (items.length === 0 || items.length > 50) return json({ error: "Carrinho vazio" }, 400);
 
+  const catalog = publicCatalog(await loadCatalog());
   const lineItems = [];
   const summary = [];
   let subtotal = 0;
@@ -48,7 +49,7 @@ export default async (req) => {
 
   for (const item of items) {
     const product = catalog.products.find((p) => p.id === item.id);
-    const size = catalog.sizes.find((s) => s.id === item.size);
+    const size = product && product.options.find((o) => o.id === item.size);
     const qty = Math.floor(Number(item.qty));
     if (!product || !size || !(qty >= 1 && qty <= MAX_QTY)) {
       return json({ error: "Produto inválido no carrinho" }, 400);
@@ -66,21 +67,21 @@ export default async (req) => {
     });
   }
 
-  const shippingOptions = catalog.shipping
-    .filter((s) => !s.minSubtotal || subtotal >= s.minSubtotal)
-    .filter((s, _, all) => s.price === 0 || !all.some((o) => o.price === 0)) // se há envio grátis, mostra só esse
-    .map((s) => ({
+  const ship = catalog.shipping;
+  const free = ship.freeFrom > 0 && subtotal >= ship.freeFrom;
+  const shippingOptions = [
+    {
       shipping_rate_data: {
         type: "fixed_amount",
-        display_name: s.label,
-        fixed_amount: { amount: s.price, currency: "eur" },
+        display_name: free ? `${ship.label} (grátis)` : ship.label,
+        fixed_amount: { amount: free ? 0 : ship.price, currency: "eur" },
         delivery_estimate: {
-          minimum: { unit: "business_day", value: s.days[0] },
-          maximum: { unit: "business_day", value: s.days[1] }
-        },
-        metadata: { shipping_id: s.id }
+          minimum: { unit: "business_day", value: ship.days[0] },
+          maximum: { unit: "business_day", value: ship.days[1] }
+        }
       }
-    }));
+    }
+  ];
 
   const siteUrl = Netlify.env.get("URL") || new URL(req.url).origin;
 

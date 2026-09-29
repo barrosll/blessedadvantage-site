@@ -15,15 +15,24 @@
     try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {}
   }
   function findProduct(id) { return catalog.products.find(function (p) { return p.id === id; }); }
-  function findSize(id) { return catalog.sizes.find(function (s) { return s.id === id; }); }
+  function findOption(product, id) { return product && product.options.find(function (o) { return o.id === id; }); }
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
 
   // Galeria
   function renderGallery() {
-    var from = money(Math.min.apply(null, catalog.sizes.map(function (s) { return s.price; })));
+    if (!catalog.products.length) {
+      $("galeria").innerHTML = '<p class="muted">Novas impressões em breve.</p>';
+      return;
+    }
     $("galeria").innerHTML = catalog.products.map(function (p) {
-      return '<button class="card" data-id="' + p.id + '">' +
-        '<img src="' + p.image + '" alt="' + p.title + '" loading="lazy">' +
-        '<h3>' + p.title + '</h3><p>desde ' + from + '</p></button>';
+      var from = Math.min.apply(null, p.options.map(function (o) { return o.price; }));
+      return '<button class="card" data-id="' + esc(p.id) + '">' +
+        '<img src="' + esc(p.image) + '" alt="' + esc(p.title) + '" loading="lazy">' +
+        '<h3>' + esc(p.title) + '</h3><p>' + (p.options.length > 1 ? "desde " : "") + money(from) + '</p></button>';
     }).join("");
   }
 
@@ -35,16 +44,16 @@
     $("dlgImage").alt = current.title;
     $("dlgTitle").textContent = current.title;
     $("dlgDesc").textContent = current.description;
-    $("dlgSizes").innerHTML = "<legend>Tamanho</legend>" + catalog.sizes.map(function (s, i) {
-      return '<label><span><input type="radio" name="size" value="' + s.id + '"' + (i === 0 ? " checked" : "") + ">" +
-        s.label + "</span><span>" + money(s.price) + "</span></label>";
+    $("dlgSizes").innerHTML = "<legend>Tamanho</legend>" + current.options.map(function (o, i) {
+      return '<label><span><input type="radio" name="size" value="' + esc(o.id) + '"' + (i === 0 ? " checked" : "") + ">" +
+        esc(o.label) + "</span><span>" + money(o.price) + "</span></label>";
     }).join("");
     updateDialogPrice();
     $("productDialog").showModal();
   }
   function selectedSize() {
     var input = document.querySelector('#dlgSizes input:checked');
-    return findSize(input ? input.value : catalog.sizes[0].id);
+    return findOption(current, input ? input.value : current.options[0].id);
   }
   function updateDialogPrice() { $("dlgPrice").textContent = money(selectedSize().price); }
 
@@ -61,14 +70,14 @@
   // Carrinho
   function renderCart() {
     // Remove linhas de produtos que já não existem no catálogo
-    cart = cart.filter(function (l) { return findProduct(l.id) && findSize(l.size); });
+    cart = cart.filter(function (l) { return findOption(findProduct(l.id), l.size); });
     var count = 0, subtotal = 0;
     $("cartItems").innerHTML = cart.length ? cart.map(function (l, i) {
-      var p = findProduct(l.id), s = findSize(l.size);
+      var p = findProduct(l.id), s = findOption(p, l.size);
       count += l.qty;
       subtotal += s.price * l.qty;
-      return '<li><img src="' + p.image + '" alt="">' +
-        '<div><div class="name">' + p.title + '</div><div class="muted small">' + s.label + '</div>' +
+      return '<li><img src="' + esc(p.image) + '" alt="">' +
+        '<div><div class="name">' + esc(p.title) + '</div><div class="muted small">' + esc(s.label) + '</div>' +
         '<div class="qty"><button data-i="' + i + '" data-d="-1" aria-label="Menos">−</button>' + l.qty +
         '<button data-i="' + i + '" data-d="1" aria-label="Mais">+</button></div></div>' +
         '<strong>' + money(s.price * l.qty) + '</strong></li>';
@@ -78,11 +87,10 @@
     $("cartSubtotal").textContent = money(subtotal);
     $("checkoutBtn").disabled = cart.length === 0;
 
-    var free = catalog.shipping.find(function (s) { return s.minSubtotal; });
-    var paid = catalog.shipping.find(function (s) { return !s.minSubtotal; });
-    $("shippingNote").textContent = free && subtotal >= free.minSubtotal
+    var ship = catalog.shipping;
+    $("shippingNote").textContent = ship.freeFrom && subtotal >= ship.freeFrom
       ? "Envio grátis por CTT."
-      : "Envio CTT: " + money(paid.price) + (free ? " · grátis acima de " + money(free.minSubtotal) : "");
+      : "Envio CTT: " + money(ship.price) + (ship.freeFrom ? " · grátis acima de " + money(ship.freeFrom) : "");
   }
 
   function changeQty(i, delta) {
@@ -145,7 +153,7 @@
   $("checkoutBtn").addEventListener("click", checkout);
   $("year").textContent = new Date().getFullYear();
 
-  fetch("products.json")
+  fetch("/api/catalog")
     .then(function (r) { return r.json(); })
     .then(function (data) {
       catalog = data;
