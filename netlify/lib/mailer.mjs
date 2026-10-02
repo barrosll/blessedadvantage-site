@@ -2,7 +2,7 @@
 // Sem RESEND_API_KEY (ex.: em testes locais) o email não é enviado, só registado no log.
 export async function sendEmail({ to, subject, html }) {
   const apiKey = Netlify.env.get("RESEND_API_KEY");
-  const from = Netlify.env.get("EMAIL_FROM") || "Welabb <encomendas@blessedadvantage.pt>";
+  const from = Netlify.env.get("EMAIL_FROM") || "Welabb <encomendas@welabb.pt>";
   const replyTo = Netlify.env.get("EMAIL_REPLY_TO"); // caixa de email que lê (para as respostas dos clientes)
 
   // EMAIL_MOCK=1 (só dentro do netlify dev): não envia, guarda o email num Blob para testes

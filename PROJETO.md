@@ -36,10 +36,9 @@ Documento de referência do projeto: o que já está feito, como funciona, como 
 - **Marca:** Welabb — logo com o bico da impressora e filamento verde-lima.
 - **Cores:** preto `#0a0a0a`, fundo `#f4f4f4`, verde-lima `#d4e000` (botões), verde do logo `#84cc00`.
 - **Letras:** Inter Tight (títulos), Inter (texto), JetBrains Mono (etiquetas técnicas).
-- **Domínio atual:** `blessedadvantage.pt` (registado até **17/11/2026** — renovar!).
-  Os registos DNS ainda apontam para uma plataforma antiga (Cloudflare) e serão trocados na publicação.
-- **Plano:** registar `welabb.pt` e mudar para ele mais tarde. A mudança é feita na Netlify
-  (domínio principal + redirecionamento do antigo) — o código já está preparado.
+- **Domínio principal:** `welabb.pt` (já registado). Emails da loja: `encomendas@welabb.pt`.
+- **Domínio secundário:** `blessedadvantage.pt` (registado até **17/11/2026**) — redireciona para welabb.pt.
+  Os registos DNS dele ainda apontam para uma plataforma antiga (Cloudflare) e serão trocados na publicação.
 
 ---
 
@@ -139,7 +138,7 @@ Multibanco: a encomenda só é criada quando o cliente paga a referência.
 5. *Nova encomenda paga — WLB-XXXX* — para a loja
 
 **A fazer:**
-1. Criar conta em resend.com → *Domains → Add domain* → `blessedadvantage.pt` → registos DNS indicados pelo Resend.
+1. Criar conta em resend.com → *Domains → Add domain* → `welabb.pt` → registos DNS indicados pelo Resend.
 2. *API Keys → Create* → `RESEND_API_KEY`. Definir `EMAIL_FROM`, `EMAIL_REPLY_TO` e `ADMIN_ORDER_EMAIL`.
 
 ---
@@ -234,7 +233,7 @@ Definir na Netlify em *Site configuration → Environment variables* (e no `.env
 | `STRIPE_WEBHOOK_SECRET` | Segredo do webhook (`whsec_…`) | Sim |
 | `MAINTENANCE_MODE` | `1` = loja fechada ("Voltamos em breve") | Não |
 | `RESEND_API_KEY` | Chave do Resend (`re_…`) | Para emails |
-| `EMAIL_FROM` | Remetente, ex.: `Welabb <encomendas@blessedadvantage.pt>` | Não |
+| `EMAIL_FROM` | Remetente, ex.: `Welabb <encomendas@welabb.pt>` | Não |
 | `EMAIL_REPLY_TO` | Email que recebe as respostas dos clientes | Recomendado |
 | `ADMIN_ORDER_EMAIL` | Recebe o aviso "Nova encomenda paga" | Recomendado |
 | `PACKAGE_WEIGHT_KG` | Peso da embalagem somado a cada envio (ex.: `0.15`) | Não |
@@ -267,13 +266,15 @@ netlify dev --offline --port 8888
 1. **Netlify:** app.netlify.com → *Sign up with GitHub* → *Add new site → Import from GitHub* → `blessedadvantage-site` → *Deploy* (sem mudar nada).
 2. **Variáveis:** adicionar as do ponto 10 (começar com `MAINTENANCE_MODE=1` para preparar a loja com calma).
 3. **Webhook da Stripe:** *Programadores → Webhooks → Adicionar endpoint* →
-   `https://blessedadvantage.pt/api/stripe-webhook`, eventos `checkout.session.completed` e
+   `https://welabb.pt/api/stripe-webhook`, eventos `checkout.session.completed` e
    `checkout.session.async_payment_succeeded` → copiar o `whsec_…` para `STRIPE_WEBHOOK_SECRET`.
-   **Webhook da Sendcloud:** na integração API, ativar o webhook com `https://blessedadvantage.pt/api/sendcloud-webhook`.
-4. **Domínio:** na Netlify, *Domain management → Add domain* → `blessedadvantage.pt`. No painel do domínio:
-   - apagar os 2 registos **A** antigos (104.19.x.x), o **CNAME** que aponta para ele próprio, `_acme-challenge` e `_cf-custom-hostname`;
-   - adicionar **A** `blessedadvantage.pt` → `75.2.60.5` e **CNAME** `www` → `<nome-do-site>.netlify.app`
-     (confirmar os valores exatos que a Netlify mostrar).
+   **Webhook da Sendcloud:** na integração API, ativar o webhook com `https://welabb.pt/api/sendcloud-webhook`.
+4. **Domínios:** na Netlify, *Domain management → Add domain* → `welabb.pt` (definir como **principal**) e depois
+   `blessedadvantage.pt` como **alias** (redireciona automaticamente para welabb.pt).
+   - No painel DNS de **welabb.pt**: **A** `welabb.pt` → `75.2.60.5` e **CNAME** `www` → `<nome-do-site>.netlify.app`.
+   - No painel DNS de **blessedadvantage.pt**: apagar os 2 **A** antigos (104.19.x.x), o **CNAME** para ele próprio,
+     `_acme-challenge` e `_cf-custom-hostname`; adicionar os mesmos **A** e **CNAME www**.
+   - Confirmar os valores exatos que a Netlify mostrar. Não apagar registos **MX/TXT** de email de welabb.pt, se existirem.
 5. Preencher produtos (nome, preço, cores) e imagens do site na gestão publicada.
 6. Fazer uma compra de teste completa no site publicado (cartão `4242…`).
 7. Ativar a conta Stripe, trocar para chaves `sk_live_…` e atualizar o webhook.
@@ -302,7 +303,7 @@ netlify dev --offline --port 8888
 - [ ] Fatura certificada automática (InvoiceXpress ou Moloni) — confirmar com o contabilista
 - [ ] Envio automático do código de 10% aos subscritores (ex.: Brevo/Mailchimp)
 - [ ] Notificação por email dos pedidos de orçamento e newsletter (Netlify Forms)
-- [ ] Registar `welabb.pt` (e `.com`), configurar email `ola@welabb.pt` e mudar o domínio
+- [ ] Caixa de email `ola@welabb.pt` (ex.: reencaminhamento no registo do domínio, Zoho Mail ou Google Workspace)
 - [ ] Secção de testemunhos — **só com avaliações reais de clientes**
 
 ---
