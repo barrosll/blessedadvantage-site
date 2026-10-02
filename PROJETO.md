@@ -303,7 +303,7 @@ netlify dev --offline --port 8888
 - [ ] Fatura certificada automática (InvoiceXpress ou Moloni) — confirmar com o contabilista
 - [ ] Envio automático do código de 10% aos subscritores (ex.: Brevo/Mailchimp)
 - [ ] Notificação por email dos pedidos de orçamento e newsletter (Netlify Forms)
-- [ ] Caixa de email `ola@welabb.pt` (ex.: reencaminhamento no registo do domínio, Zoho Mail ou Google Workspace)
+- [ ] Caixa de email `geral@welabb.pt` (ex.: reencaminhamento no registo do domínio, Zoho Mail ou Google Workspace)
 - [ ] Secção de testemunhos — **só com avaliações reais de clientes**
 
 ---

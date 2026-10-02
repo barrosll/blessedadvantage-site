@@ -440,7 +440,7 @@
         status.textContent = okMessage;
       }).catch(function () {
         status.className = "form-status err";
-        status.textContent = "Não foi possível enviar. Tenta novamente ou escreve para ola@welabb.pt.";
+        status.textContent = "Não foi possível enviar. Tenta novamente ou escreve para geral@welabb.pt.";
       }).then(function () { btn.disabled = false; });
     });
   }
