@@ -285,7 +285,7 @@ netlify dev --offline --port 8888
 ## 13. Pendentes (lista de tarefas)
 
 **Antes de abrir a loja**
-- [ ] Publicar na Netlify e ligar o domínio
+- [x] Publicar na Netlify e ligar o domínio (welabb.pt, HTTPS ativo — 02/10/2026; conta lohanbarros970, equipa ESTRELA, projeto "welabb")
 - [ ] Password forte para a gestão (`ADMIN_PASSWORD`)
 - [ ] Ativar Multibanco na Stripe; desativar Bancontact e EPS
 - [ ] Configurar Resend (domínio + chave), `EMAIL_REPLY_TO` e `ADMIN_ORDER_EMAIL`
