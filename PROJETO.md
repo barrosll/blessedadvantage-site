@@ -303,7 +303,9 @@ netlify dev --offline --port 8888
 - [ ] Fatura certificada automática (InvoiceXpress ou Moloni) — confirmar com o contabilista
 - [ ] Envio automático do código de 10% aos subscritores (ex.: Brevo/Mailchimp)
 - [ ] Notificação por email dos pedidos de orçamento e newsletter (Netlify Forms)
-- [ ] Caixa de email `geral@welabb.pt` (ex.: reencaminhamento no registo do domínio, Zoho Mail ou Google Workspace)
+- [x] Caixa de email `geral@welabb.pt` — Web Domain da dominios.pt (cPanel, 32 €/ano a partir de 02/10/2027).
+      Servidor: `webdomain04.dnscpanel.com` · IMAP 993 SSL/TLS · SMTP 465 SSL/TLS · utilizador = email completo.
+      DNS: MX `mail.welabb.pt`, SPF, DKIM (`default._domainkey`), DMARC. **Não mudar os nameservers para dnscpanel.com** (o site está na Netlify).
 - [ ] Secção de testemunhos — **só com avaliações reais de clientes**
 
 ---
