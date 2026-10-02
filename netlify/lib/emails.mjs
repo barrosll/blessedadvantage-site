@@ -28,18 +28,30 @@ export function computeEta(paidAt, productionDays, shippingDays) {
   ];
 }
 
-// Etapas mostradas no email e na página da encomenda
-const STEPS = ["Paga", "Em produção", "Enviada", "Entregue"];
+// Linha do tempo (igual à da página "A minha encomenda").
+// Entrega em casa não mostra "Encomenda preparada" nem "Disponível para recolha".
+const RANK = { paid: 0, production: 1, ready_to_ship: 2, shipped: 3, in_transit: 4, ready_for_pickup: 5, delivered: 6 };
+export function timelineSteps(order) {
+  const steps = order.servicePoint
+    ? [["paid", "Pagamento confirmado"], ["production", "Em produção"], ["ready_to_ship", "Encomenda preparada"], ["shipped", "Enviada"],
+       ["in_transit", "Em trânsito"], ["ready_for_pickup", "Disponível para recolha"], ["delivered", "Entregue"]]
+    : [["paid", "Pagamento confirmado"], ["production", "Em produção"], ["shipped", "Enviada"], ["in_transit", "Em trânsito"], ["delivered", "Entregue"]];
+  const rank = RANK[order.status] == null ? 0 : RANK[order.status];
+  let current = 0;
+  steps.forEach(([key], i) => { if (RANK[key] <= rank) current = i; });
+  return { steps, current };
+}
 
-function progress(current) {
-  const cells = STEPS.map((label, i) => {
+function progress(order) {
+  const { steps, current } = timelineSteps(order);
+  const cells = steps.map(([, text], i) => {
     const done = i <= current;
-    return `<td align="center" style="padding:0 4px;">
-      <div style="width:28px;height:28px;line-height:28px;margin:0 auto 6px;border-radius:14px;background:${done ? C.lime : C.line};color:${C.dark};${FONT}font-size:13px;font-weight:700;">${done ? "✓" : i + 1}</div>
-      <div style="${FONT}font-size:12px;color:${done ? C.text : C.muted};font-weight:${i === current ? 700 : 400};">${label}</div>
+    return `<td align="center" valign="top" style="padding:0 2px;">
+      <div style="width:24px;height:24px;line-height:24px;margin:0 auto 6px;border-radius:12px;background:${done ? C.lime : C.line};color:${C.dark};${FONT}font-size:12px;font-weight:700;">${done ? "✓" : i + 1}</div>
+      <div style="${FONT}font-size:11px;line-height:1.3;color:${done ? C.text : C.muted};font-weight:${i === current ? 700 : 400};">${text}</div>
     </td>`;
   });
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr>${cells.join("")}</tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;table-layout:fixed;"><tr>${cells.join("")}</tr></table>`;
 }
 
 function layout({ preheader, body, siteUrl, contact }) {
@@ -64,87 +76,150 @@ function layout({ preheader, body, siteUrl, contact }) {
 const label = (t) => `<div style="${MONO}font-size:11px;letter-spacing:3px;text-transform:uppercase;color:${C.muted};margin:0 0 10px;">■ ${t}</div>`;
 const button = (href, text) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;"><tr><td style="background:${C.dark};">
   <a href="${href}" style="display:inline-block;padding:15px 28px;${FONT}font-size:14px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#ffffff;text-decoration:none;">${text}</a></td></tr></table>`;
+const h1 = (t) => `<h1 style="margin:0 0 14px;${FONT}font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.5px;color:${C.text};">${t}</h1>`;
+const para = (t) => `<p style="margin:0 0 22px;${FONT}font-size:15px;line-height:1.6;color:${C.muted};">${t}</p>`;
+const box = (inner) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:${C.bg};"><tr><td style="padding:18px 20px;${FONT}font-size:14px;line-height:1.7;color:${C.text};">${inner}</td></tr></table>`;
 
-/**
- * Email "Obrigado pela tua encomenda".
- * order = { number, firstName, items:[{title, details, note, qty, unitPrice, image}], subtotal, shipping, discount, total,
- *           address:{name, line1, line2, postalCode, city}, paidAt, productionDays:[min,max], shippingDays:[min,max], trackUrl }
- */
-export function orderConfirmationEmail(order, siteUrl, contact) {
-  const eta = order.eta;
+// Bloco "Entrega": método e ponto de recolha (ou morada)
+function deliveryBlock(order) {
+  const sp = order.servicePoint;
+  const a = order.address || {};
+  const where = sp
+    ? `<span style="color:${C.muted};">Ponto de recolha:</span><br><strong>${esc(sp.name)}</strong><br>${esc(sp.street)}<br>${esc(sp.postalCode)} ${esc(sp.city)}`
+    : `${esc(a.name)}<br>${esc(a.line1)}${a.line2 ? "<br>" + esc(a.line2) : ""}<br>${esc(a.postalCode)} ${esc(a.city)}`;
+  return `${label("Entrega")}
+    <p style="margin:0 0 6px;${FONT}font-size:14px;line-height:1.6;color:${C.text};"><strong>${esc(order.shippingMethodName || "CTT")}</strong></p>
+    <p style="margin:0;${FONT}font-size:14px;line-height:1.6;color:${C.text};">${where}</p>`;
+}
 
-  const items = order.items.map((it) => `<tr>
+function trackingBox(order) {
+  if (!order.trackingNumber) return "";
+  return box(`Código de seguimento:<br><span style="${MONO}font-size:17px;font-weight:600;letter-spacing:1px;">${esc(order.trackingNumber)}</span>`);
+}
+
+function itemsTable(order) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${order.items.map((it) => `<tr>
       <td width="72" valign="top" style="padding:14px 14px 14px 0;border-bottom:1px solid ${C.line};">
         ${it.image ? `<img src="${esc(it.image)}" alt="" width="64" height="64" style="display:block;width:64px;height:64px;object-fit:cover;border:0;background:${C.bg};">` : ""}</td>
       <td valign="top" style="padding:14px 0;border-bottom:1px solid ${C.line};${FONT}font-size:14px;line-height:1.5;color:${C.text};">
         <strong>${esc(it.title)}</strong><br>
         <span style="color:${C.muted};">${esc([it.details, "Qtd. " + it.qty].filter(Boolean).join(" · "))}</span>
-        ${it.note ? `<br><span style="color:${C.muted};font-style:italic;">Nota: “${esc(it.note)}”</span>` : ""}</td>
+        ${it.note ? `<br><span style="color:${C.muted};font-style:italic;">Personalização: “${esc(it.note)}”</span>` : ""}</td>
       <td valign="top" align="right" style="padding:14px 0 14px 12px;border-bottom:1px solid ${C.line};${FONT}font-size:14px;font-weight:600;color:${C.text};white-space:nowrap;">${euro(it.unitPrice * it.qty)}</td>
-    </tr>`).join("");
+    </tr>`).join("")}</table>`;
+}
 
+function totalsTable(order) {
   const row = (k, v, strong) => `<tr><td style="padding:4px 0;${FONT}font-size:14px;color:${strong ? C.text : C.muted};${strong ? "font-weight:700;font-size:16px;" : ""}">${k}</td>
     <td align="right" style="padding:4px 0;${FONT}font-size:14px;color:${C.text};${strong ? "font-weight:700;font-size:16px;" : ""}">${v}</td></tr>`;
-
-  const a = order.address;
-  const body = `
-    ${label(`Encomenda #${esc(order.number)}`)}
-    <h1 style="margin:0 0 14px;${FONT}font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.5px;color:${C.text};">Obrigado, ${esc(order.firstName)}!</h1>
-    <p style="margin:0 0 22px;${FONT}font-size:15px;line-height:1.6;color:${C.muted};">Recebemos o teu pagamento e a tua encomenda já está na fila da impressora. Cada peça é impressa por encomenda, camada a camada — vamos avisando-te a cada passo.</p>
-
-    ${progress(0)}
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:${C.bg};"><tr><td style="padding:18px 20px;${FONT}font-size:14px;line-height:1.6;color:${C.text};">
-      <strong>Entrega prevista: ${fmtDate(eta[0])} – ${fmtDate(eta[1])}</strong><br>
-      <span style="color:${C.muted};">Produção: ${order.productionDays[0]}–${order.productionDays[1]} dias úteis · Envio CTT: ${order.shippingDays[0]}–${order.shippingDays[1]} dias úteis</span>
-    </td></tr></table>
-
-    ${button(order.trackUrl, "Acompanhar encomenda")}
-
-    <div style="height:18px;"></div>
-    ${label("Resumo")}
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${items}</table>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
       ${row("Subtotal", euro(order.subtotal))}
       ${order.discount ? row("Desconto", "−" + euro(order.discount)) : ""}
-      ${row("Envio CTT", order.shipping ? euro(order.shipping) : "Grátis")}
+      ${row("Portes", order.shipping ? euro(order.shipping) : "Grátis")}
       ${row("Total pago", euro(order.total), true)}
-    </table>
+    </table>`;
+}
 
+/** Email 1 — Pagamento confirmado. */
+export function orderConfirmationEmail(order, siteUrl, contact) {
+  const eta = order.eta;
+  const body = `
+    ${label(`Encomenda #${esc(order.number)}`)}
+    ${h1(`Obrigado, ${esc(order.firstName)}!`)}
+    ${para("Recebemos o teu pagamento e a tua encomenda já está na fila da impressora. Cada peça é impressa por encomenda, camada a camada — vamos avisando-te a cada passo.")}
+    ${progress(order)}
+    ${box(`<strong>Entrega prevista: ${fmtDate(eta[0])} – ${fmtDate(eta[1])}</strong><br>
+      <span style="color:${C.muted};">Produção: ${order.productionDays[0]}–${order.productionDays[1]} dias úteis · Transporte: ${order.shippingDays[0]}–${order.shippingDays[1]} dias úteis</span>`)}
+    ${button(order.trackUrl, "Acompanhar encomenda")}
+    <div style="height:18px;"></div>
+    ${label("Resumo")}
+    ${itemsTable(order)}
+    ${totalsTable(order)}
     <div style="height:28px;"></div>
-    ${label("Enviamos para")}
-    <p style="margin:0;${FONT}font-size:14px;line-height:1.6;color:${C.text};">${esc(a.name)}<br>${esc(a.line1)}${a.line2 ? "<br>" + esc(a.line2) : ""}<br>${esc(a.postalCode)} ${esc(a.city)}</p>
-
+    ${deliveryBlock(order)}
     <p style="margin:28px 0 0;${FONT}font-size:13px;line-height:1.6;color:${C.muted};">Guarda este email como comprovativo. Se algum dado estiver errado, responde a este email o quanto antes — antes de a peça ir para a impressora ainda conseguimos ajustar.</p>`;
-
   return {
-    subject: `Encomenda #${order.number} confirmada — obrigado, ${order.firstName}!`,
+    subject: `Pagamento confirmado — Encomenda ${order.number}`,
     html: layout({ preheader: `Recebemos a tua encomenda. Entrega prevista entre ${fmtDate(eta[0])} e ${fmtDate(eta[1])}.`, body, siteUrl, contact })
   };
 }
 
-/** Email "A tua encomenda foi enviada" (com código CTT). */
+/** Email 2 — A caminho (enviada / em trânsito). */
 export function orderShippedEmail(order, siteUrl, contact) {
-  const t = order.tracking || {};
   const body = `
     ${label(`Encomenda #${esc(order.number)}`)}
-    <h1 style="margin:0 0 14px;${FONT}font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.5px;color:${C.text};">Está a caminho, ${esc(order.firstName)}!</h1>
-    <p style="margin:0 0 22px;${FONT}font-size:15px;line-height:1.6;color:${C.muted};">A tua encomenda saiu da impressora, foi verificada e embalada à mão, e já foi entregue aos CTT.</p>
-
-    ${progress(2)}
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;background:${C.bg};"><tr><td style="padding:18px 20px;${FONT}font-size:14px;line-height:1.7;color:${C.text};">
-      ${t.number ? `Código de seguimento CTT:<br><span style="${MONO}font-size:17px;font-weight:600;letter-spacing:1px;">${esc(t.number)}</span><br>` : ""}
-      <span style="color:${C.muted};">Entrega normalmente em ${(order.shippingDays || [2, 4]).join(" a ")} dias úteis.</span>
-    </td></tr></table>
-
-    ${t.url ? button(t.url, "Seguir nos CTT") : ""}
-    <p style="margin:8px 0 0;${FONT}font-size:14px;"><a href="${order.trackUrl}" style="color:${C.text};">Ver a minha encomenda</a></p>
-
+    ${h1(`Está a caminho, ${esc(order.firstName)}!`)}
+    ${para("A tua encomenda foi verificada, embalada à mão e entregue à transportadora.")}
+    ${progress(order)}
+    ${trackingBox(order)}
+    ${button(order.trackingUrl || order.trackUrl, "Acompanhar encomenda")}
+    <div style="height:18px;"></div>
+    ${deliveryBlock(order)}
     <p style="margin:28px 0 0;${FONT}font-size:13px;line-height:1.6;color:${C.muted};">Quando a receberes, adorávamos ver a peça no seu novo lugar — marca-nos ou responde com uma foto.</p>`;
-
   return {
-    subject: `A tua encomenda #${order.number} está a caminho`,
-    html: layout({ preheader: t.number ? `Código CTT: ${t.number}` : "A tua encomenda foi enviada.", body, siteUrl, contact })
+    subject: `A tua encomenda ${order.number} está a caminho`,
+    html: layout({ preheader: order.trackingNumber ? `Tracking: ${order.trackingNumber}` : "A tua encomenda foi enviada.", body, siteUrl, contact })
+  };
+}
+
+/** Email 3 — Disponível para recolha (só ponto de recolha). */
+export function orderPickupEmail(order, siteUrl, contact) {
+  const sp = order.servicePoint || {};
+  const body = `
+    ${label(`Encomenda #${esc(order.number)}`)}
+    ${h1("Já podes levantar a tua encomenda!")}
+    ${para(`A tua encomenda chegou a <strong style="color:${C.text};">${esc(sp.name)}</strong>. Leva o código de seguimento para a levantar.`)}
+    ${progress(order)}
+    ${box(`<strong>${esc(sp.name)}</strong><br>${esc(sp.street)}<br>${esc(sp.postalCode)} ${esc(sp.city)}
+      ${order.trackingNumber ? `<br><br><span style="color:${C.muted};">Código de seguimento:</span><br><span style="${MONO}font-size:17px;font-weight:600;letter-spacing:1px;">${esc(order.trackingNumber)}</span>` : ""}`)}
+    ${button(order.trackUrl, "Acompanhar encomenda")}
+    <p style="margin:20px 0 0;${FONT}font-size:13px;line-height:1.6;color:${C.muted};">Os pontos de recolha guardam as encomendas por tempo limitado — levanta-a o quanto antes.</p>`;
+  return {
+    subject: `A tua encomenda ${order.number} já pode ser levantada`,
+    html: layout({ preheader: `Disponível em ${sp.name || "ponto de recolha"}.`, body, siteUrl, contact })
+  };
+}
+
+/** Email 4 — Entregue. */
+export function orderDeliveredEmail(order, siteUrl, contact) {
+  const body = `
+    ${label(`Encomenda #${esc(order.number)}`)}
+    ${h1(`Entregue! Esperamos que gostes, ${esc(order.firstName)}.`)}
+    ${para("A tua encomenda foi entregue. Se alguma coisa não estiver perfeita, responde a este email — resolvemos contigo.")}
+    ${progress(order)}
+    ${button(order.trackUrl, "Ver a minha encomenda")}
+    <p style="margin:20px 0 0;${FONT}font-size:13px;line-height:1.6;color:${C.muted};">Adorávamos ver a peça no seu novo lugar — responde com uma foto.</p>`;
+  return {
+    subject: `A tua encomenda ${order.number} foi entregue`,
+    html: layout({ preheader: "A tua encomenda foi entregue.", body, siteUrl, contact })
+  };
+}
+
+/** Email para a loja — nova encomenda paga. */
+export function adminNewOrderEmail(order, siteUrl) {
+  const sp = order.servicePoint;
+  const a = order.address || {};
+  const tracking = order.trackingNumber
+    ? esc(order.trackingNumber)
+    : order.shippingStatus === "shipping_error" ? "⚠ ENVIO NÃO CRIADO — ver na gestão" : "ainda sem código";
+  const body = `
+    ${label("Nova encomenda paga")}
+    ${h1(`${esc(order.number)} — ${euro(order.total)}`)}
+    <p style="margin:0 0 18px;${FONT}font-size:14px;line-height:1.7;color:${C.text};">
+      <strong>${esc(order.name)}</strong><br>${esc(order.email)} · ${esc(order.phone)}${order.taxId ? "<br>NIF " + esc(order.taxId) : ""}</p>
+    ${itemsTable(order)}
+    ${totalsTable(order)}
+    <div style="height:20px;"></div>
+    ${label("Transporte")}
+    <p style="margin:0;${FONT}font-size:14px;line-height:1.7;color:${C.text};">
+      ${esc(order.shippingMethodName || "—")}<br>
+      ${sp ? `Ponto: ${esc(sp.name)} — ${esc(sp.street)}, ${esc(sp.postalCode)} ${esc(sp.city)}<br>` : ""}
+      Morada: ${esc([a.line1, a.line2, a.postalCode, a.city].filter(Boolean).join(", "))}<br>
+      Peso: ${esc(order.parcelWeight)} kg<br>
+      Tracking: ${tracking}</p>
+    ${button(`${siteUrl}/admin.html`, "Abrir gestão")}`;
+  return {
+    subject: `Nova encomenda paga — ${order.number}`,
+    html: layout({ preheader: `${order.name} · ${euro(order.total)} · ${order.shippingMethodName || ""}`, body, siteUrl, contact: "" })
   };
 }

@@ -1,6 +1,7 @@
 // Cria uma sessão de pagamento na Stripe (MB WAY, Multibanco, cartão...).
 // Os preços vêm SEMPRE do catálogo no servidor, nunca do browser.
-import { loadCatalog, publicCatalog, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
+import { loadCatalog, publicCatalog, findMethod, shippingPrice, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
+import { getServicePoint, isConfigured, NOT_CONFIGURED } from "../lib/sendcloud.mjs";
 
 export const config = { path: "/api/checkout" };
 
@@ -42,9 +43,10 @@ export default async (req) => {
 
   const items = Array.isArray(body.items) ? body.items : [];
   if (items.length === 0) return json({ error: "Carrinho vazio" }, 400);
-  if (items.length > 40) return json({ error: "Demasiados produtos diferentes no carrinho" }, 400);
+  if (items.length > 35) return json({ error: "Demasiados produtos diferentes no carrinho" }, 400); // metadata Stripe: máx. 50 campos
 
-  const catalog = publicCatalog(await loadCatalog());
+  const fullCatalog = await loadCatalog();
+  const catalog = publicCatalog(fullCatalog);
   const siteUrl = Netlify.env.get("URL") || new URL(req.url).origin;
   const lineItems = [];
   const summary = [];
@@ -93,17 +95,43 @@ export default async (req) => {
     });
   }
 
-  const ship = catalog.shipping;
-  const free = ship.freeFrom > 0 && subtotal >= ship.freeFrom;
+  // Entrega: método escolhido pelo cliente; preço e regras vêm SEMPRE do catálogo no servidor
+  const delivery = body.delivery || {};
+  const method = findMethod(fullCatalog, String(delivery.methodId || ""));
+  if (!method) return json({ error: "Escolhe um método de entrega" }, 400);
+
+  let point = null;
+  if (method.requiresServicePoint) {
+    const pointId = String(delivery.servicePointId || "").slice(0, 60);
+    if (!pointId) return json({ error: "Escolhe primeiro um ponto de recolha." }, 400);
+    if (!isConfigured()) return json({ error: NOT_CONFIGURED }, 503);
+    // Confirma o ponto na Sendcloud (o browser não decide nome, morada nem transportadora)
+    try {
+      point = await getServicePoint(pointId);
+    } catch (err) {
+      console.error("Ponto de recolha:", err.message);
+      return json({ error: err.status === 404 ? "Ponto de recolha não encontrado. Escolhe outro." : "Não foi possível confirmar o ponto de recolha. Tenta novamente." }, err.status === 404 ? 400 : 502);
+    }
+    if (!point || (method.carrier && point.carrier && !point.carrier.startsWith(method.carrier) && !method.carrier.startsWith(point.carrier))) {
+      return json({ error: "Este ponto de recolha não pertence à transportadora escolhida." }, 400);
+    }
+  }
+
+  // Peso real: variante × quantidade (do catálogo) + embalagem
+  const packageKg = Math.max(0, Number(Netlify.env.get("PACKAGE_WEIGHT_KG")) || 0);
+  weight += packageKg;
+
+  const shipCost = shippingPrice(method, subtotal);
+  const shipName = (point ? `${method.name} — ${point.name}` : method.name).slice(0, 100) + (shipCost === 0 ? " (grátis)" : "");
   const shippingOptions = [
     {
       shipping_rate_data: {
         type: "fixed_amount",
-        display_name: free ? `${ship.label} (grátis)` : ship.label,
-        fixed_amount: { amount: free ? 0 : ship.price, currency: "eur" },
+        display_name: shipName,
+        fixed_amount: { amount: shipCost, currency: "eur" },
         delivery_estimate: {
-          minimum: { unit: "business_day", value: ship.days[0] },
-          maximum: { unit: "business_day", value: ship.days[1] }
+          minimum: { unit: "business_day", value: method.days[0] },
+          maximum: { unit: "business_day", value: method.days[1] }
         }
       }
     }
@@ -123,7 +151,18 @@ export default async (req) => {
     cancel_url: `${siteUrl}/#carrinho`,
     metadata: {
       items: summary.join(", ").slice(0, 500),
-      weight_kg: weight.toFixed(2),
+      weight_kg: weight.toFixed(3),
+      shipping_method: method.id,
+      ...(point
+        ? {
+            sp_id: point.id,
+            sp_name: point.name.slice(0, 200),
+            sp_address: point.street.slice(0, 200),
+            sp_postal_code: point.postalCode,
+            sp_city: point.city.slice(0, 100),
+            sp_carrier: point.carrier
+          }
+        : {}),
       ...notes
     }
   });

@@ -192,14 +192,144 @@
     }).join("") : '<li class="empty">O carrinho está vazio.</li>';
 
     $("cartCount").textContent = count;
-    $("cartSubtotal").textContent = money(subtotal);
-    $("checkoutBtn").disabled = cart.length === 0;
-
-    var ship = catalog.shipping;
-    $("shippingNote").textContent = ship.freeFrom && subtotal >= ship.freeFrom
-      ? "Envio grátis por CTT."
-      : "Envio CTT: " + money(ship.price) + (ship.freeFrom ? " · grátis acima de " + money(ship.freeFrom) : "");
+    cartSubtotal = subtotal;
+    renderDelivery();
   }
+
+  // ---------- Entrega (método + ponto de recolha) ----------
+  // Só para mostrar: o preço final dos portes é sempre recalculado no servidor.
+  var DELIVERY_KEY = "welabb-delivery";
+  var cartSubtotal = 0;
+  var delivery = loadDelivery();
+  function loadDelivery() {
+    try { return JSON.parse(localStorage.getItem(DELIVERY_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveDelivery() {
+    try { localStorage.setItem(DELIVERY_KEY, JSON.stringify(delivery)); } catch (e) {}
+  }
+  function methods() { return catalog.shippingMethods || []; }
+  function currentMethod() {
+    return methods().find(function (m) { return m.id === delivery.methodId; }) || null;
+  }
+  function shipCost(m) { return m.freeFrom && cartSubtotal >= m.freeFrom ? 0 : m.price; }
+  function selectedPoint(m) {
+    return m && m.requiresServicePoint && delivery.point && delivery.point.methodId === m.id ? delivery.point : null;
+  }
+
+  function renderDelivery() {
+    var list = methods();
+    if (!currentMethod() && list[0]) { delivery = { methodId: list[0].id }; saveDelivery(); }
+    var m = currentMethod();
+    $("deliveryMethods").innerHTML = list.map(function (x) {
+      var cost = shipCost(x);
+      return '<label class="method"><input type="radio" name="delivery" value="' + esc(x.id) + '"' + (m && x.id === m.id ? " checked" : "") + ">" +
+        '<span class="m-name">' + esc(x.name) + '<span class="muted small">' + x.days[0] + "–" + x.days[1] + " dias úteis após envio</span></span>" +
+        '<span class="m-price">' + (cost === 0 ? "Grátis" : money(cost)) + "</span></label>";
+    }).join("");
+
+    var needsPoint = Boolean(m && m.requiresServicePoint);
+    var p = selectedPoint(m);
+    $("pointBox").hidden = !needsPoint;
+    $("pointSelected").hidden = !p;
+    $("pointSelected").innerHTML = p
+      ? '<span class="ok">✓ Ponto selecionado</span><strong>' + esc(p.name) + "</strong><span>" + esc(p.street) + "</span><span>" + esc(p.postalCode + " " + p.city) + "</span>"
+      : "";
+    $("pointBtn").textContent = p ? "Alterar" : "Escolher ponto de recolha";
+
+    var cost = m ? shipCost(m) : 0;
+    $("cartSubtotal").textContent = money(cartSubtotal);
+    $("cartShipping").textContent = m ? (cost === 0 ? "Grátis" : money(cost)) : "—";
+    $("cartTotal").textContent = money(cartSubtotal + cost);
+    $("shippingNote").textContent = m && m.freeFrom && cost > 0 ? "Portes grátis a partir de " + money(m.freeFrom) + "." : "";
+
+    var problem = !cart.length ? "" : !m ? "Escolhe um método de entrega." : needsPoint && !p ? "Escolhe primeiro um ponto de recolha." : "";
+    $("checkoutBtn").disabled = !cart.length || Boolean(problem);
+    if (!$("checkoutBtn").dataset.busy) $("checkoutError").textContent = problem;
+  }
+
+  $("deliveryMethods").addEventListener("change", function (e) {
+    if (e.target.name !== "delivery") return;
+    delivery = { methodId: e.target.value, point: delivery.point };
+    saveDelivery();
+    renderDelivery();
+  });
+
+  // Pesquisa de pontos de recolha (com espera enquanto escreve; nunca carrega todos os pontos)
+  var searchTimer = null;
+  var searchSeq = 0;
+  var lastPoints = [];
+  function openPointPicker() {
+    var m = currentMethod();
+    if (!m) return;
+    $("pointCarrier").textContent = m.name;
+    $("pointList").innerHTML = "";
+    $("pointStatus").textContent = "Escreve o código postal ou a localidade.";
+    $("pointDialog").showModal();
+    $("pointQuery").focus();
+    if ($("pointQuery").value.trim().length >= 3) searchPoints({ q: $("pointQuery").value.trim() });
+  }
+  function searchPoints(params) {
+    var m = currentMethod();
+    var seq = ++searchSeq;
+    var qs = new URLSearchParams(Object.assign({ method: m.id }, params));
+    $("pointStatus").textContent = "A procurar…";
+    fetch("/api/service-points?" + qs.toString())
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (seq !== searchSeq) return; // resposta de uma pesquisa antiga
+        if (!res.ok) throw new Error(res.data.error || "Erro");
+        renderPoints(res.data.points || []);
+      })
+      .catch(function (err) {
+        if (seq !== searchSeq) return;
+        $("pointList").innerHTML = "";
+        $("pointStatus").textContent = err.message === "Erro" || err.message === "Failed to fetch" ? "Não foi possível procurar agora. Tenta novamente." : err.message;
+      });
+  }
+  function todayHours(times) {
+    if (!times) return "";
+    var idx = (new Date().getDay() + 6) % 7; // 0 = segunda-feira
+    var slots = times[idx] || times[String(idx)];
+    if (!Array.isArray(slots) || !slots.length) return "";
+    return "Hoje: " + slots.map(function (s) { return (s.start_time || "") + "–" + (s.end_time || ""); }).join(", ");
+  }
+  function renderPoints(points) {
+    lastPoints = points;
+    $("pointStatus").textContent = points.length ? points.length + " pontos encontrados" : "Nenhum ponto encontrado. Experimenta outro código postal ou localidade.";
+    $("pointList").innerHTML = points.map(function (p, i) {
+      var extra = [
+        p.distance != null ? (p.distance / 1000).toFixed(1).replace(".", ",") + " km" : "",
+        p.type === "locker" ? "Cacifo 24h" : "",
+        todayHours(p.openingTimes)
+      ].filter(Boolean).map(esc).join(" · ");
+      return '<li><button type="button" class="point-item" data-pi="' + i + '">' +
+        "<strong>" + esc(p.name) + "</strong><span>" + esc(p.street) + "</span><span>" + esc(p.postalCode + " " + p.city) + "</span>" +
+        (extra ? '<span class="muted small">' + extra + "</span>" : "") + "</button></li>";
+    }).join("");
+  }
+  $("pointList").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-pi]");
+    if (!b) return;
+    var p = lastPoints[Number(b.dataset.pi)];
+    delivery.point = { methodId: delivery.methodId, id: p.id, name: p.name, street: p.street, postalCode: p.postalCode, city: p.city };
+    saveDelivery();
+    $("pointDialog").close();
+    renderDelivery();
+  });
+  $("pointQuery").addEventListener("input", function () {
+    clearTimeout(searchTimer);
+    var q = $("pointQuery").value.trim();
+    if (q.length < 3) { $("pointStatus").textContent = "Escreve pelo menos 3 caracteres."; return; }
+    searchTimer = setTimeout(function () { searchPoints({ q: q }); }, 400);
+  });
+  $("pointGeo").addEventListener("click", function () {
+    if (!navigator.geolocation) { $("pointStatus").textContent = "O teu browser não permite usar a localização."; return; }
+    $("pointStatus").textContent = "A obter a tua localização…";
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      searchPoints({ lat: pos.coords.latitude.toFixed(5), lng: pos.coords.longitude.toFixed(5) });
+    }, function () { $("pointStatus").textContent = "Não foi possível obter a localização. Escreve o código postal."; }, { timeout: 10000 });
+  });
+  $("pointBtn").addEventListener("click", openPointPicker);
 
   function changeQty(i, delta) {
     cart[i].qty += delta;
@@ -221,13 +351,19 @@
 
   function checkout() {
     var btn = $("checkoutBtn");
+    var m = currentMethod();
+    var point = selectedPoint(m);
+    if (!m) { $("checkoutError").textContent = "Escolhe um método de entrega."; return; }
+    if (m.requiresServicePoint && !point) { $("checkoutError").textContent = "Escolhe primeiro um ponto de recolha."; return; }
     btn.disabled = true;
+    btn.dataset.busy = "1";
     btn.textContent = "A abrir pagamento…";
     $("checkoutError").textContent = "";
     fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart })
+      // Só identificadores: preços, portes e peso são calculados no servidor
+      body: JSON.stringify({ items: cart, delivery: { methodId: m.id, servicePointId: point ? point.id : "" } })
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
@@ -238,8 +374,9 @@
         $("checkoutError").textContent = err.message === "Erro" || err.message === "Failed to fetch"
           ? "Não foi possível iniciar o pagamento. Tenta novamente."
           : err.message;
+        delete btn.dataset.busy;
         btn.disabled = false;
-        btn.textContent = "Finalizar compra";
+        btn.textContent = "Pagar";
       });
   }
 

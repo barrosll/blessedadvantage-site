@@ -19,7 +19,7 @@ Documento de referência do projeto: o que já está feito, como funciona, como 
 | Multibanco | ⏳ Ativar no painel da Stripe |
 | Encomendas com número (WLB-1001…), página do cliente, gestão de estados | ✅ Pronto e testado |
 | Emails automáticos (confirmação e "a caminho") | ⏳ Falta configurar o Resend |
-| Etiquetas CTT/InPost automáticas (Sendcloud) | ⏳ Falta criar conta e chaves |
+| Envio Sendcloud: CTT/InPost, pontos de recolha, etiquetas (lote), tracking, emails | ✅ Pronto e testado em simulação · ⏳ falta conta Sendcloud |
 | Formulários (orçamento personalizado, newsletter 10%) | ⏳ Funcionam só depois de publicar |
 | Modo manutenção ("Voltamos em breve") | ✅ Pronto |
 | Publicação na Netlify + domínio | ⏳ Por fazer |
@@ -119,36 +119,58 @@ Teste real já feito com sucesso: 24,40 € (dragão 19,90 € + CTT 4,50 €).
 
 ## 6. Encomendas e emails
 
-**Fluxo automático quando um pagamento é confirmado** (aviso "webhook" da Stripe):
-1. Cria a encomenda com número sequencial **WLB-1001, WLB-1002…** (sem duplicados se a Stripe repetir o aviso).
-2. Calcula a **entrega prevista** em dias úteis: produção (3–5) + CTT (2–4).
-3. Envia o **email de confirmação** (agradecimento, produtos com foto, cor e nota, totais, morada, data prevista, botão *Acompanhar encomenda*).
-4. Cria o envio no **Sendcloud** (quando configurado).
+**Fluxo automático quando um pagamento é confirmado** (webhook da Stripe):
+1. Cria a encomenda **WLB-XXXX** — uma só por pagamento, mesmo com avisos repetidos ou simultâneos
+   (reserva da sessão + identificador da encomenda derivado do pagamento).
+2. Cria o envio na **Sendcloud** (etiqueta + tracking) — nunca duplica: usa o nº WLB como referência única na Sendcloud.
+3. Envia o **email de confirmação** ao cliente e o aviso **"Nova encomenda paga"** para `ADMIN_ORDER_EMAIL`.
+Se a Sendcloud ou o email falharem, a encomenda **fica paga** e o erro aparece na gestão (com "Tentar novamente").
 
 Multibanco: a encomenda só é criada quando o cliente paga a referência.
 
-**Emails:**
-- Serviço: **Resend** (grátis até 3.000/mês).
-- Remetente: **"Welabb" &lt;encomendas@blessedadvantage.pt&gt;** (muda para welabb.pt mais tarde só alterando `EMAIL_FROM`).
-- Respostas dos clientes vão para `EMAIL_REPLY_TO` (uma caixa de email que se lê de facto).
-- Emails prontos: **Confirmação da encomenda** e **"Está a caminho"** (com código CTT).
+**Estados:** Paga → Em produção → Preparada → Enviada → Em trânsito → Disponível para recolha (só ponto) → Entregue
+(+ Cancelada, Devolvida). O tracking da Sendcloud nunca faz a encomenda "andar para trás".
+
+**Emails (Resend) — cada um enviado automaticamente uma só vez** (data gravada na encomenda; reenviar é manual na gestão):
+1. *Pagamento confirmado — Encomenda WLB-XXXX* (produtos, opção, cor, personalização, totais, entrega, ponto, data prevista)
+2. *A tua encomenda WLB-XXXX está a caminho* (transportadora, tracking, destino) — quando passa a Enviada/Em trânsito
+3. *A tua encomenda WLB-XXXX já pode ser levantada* — só ponto de recolha
+4. *A tua encomenda WLB-XXXX foi entregue*
+5. *Nova encomenda paga — WLB-XXXX* — para a loja
 
 **A fazer:**
-1. Criar conta em resend.com.
-2. *Domains → Add domain* → `blessedadvantage.pt` → adicionar os registos DNS que o Resend indicar.
-3. *API Keys → Create* → guardar como `RESEND_API_KEY`.
-4. Definir `EMAIL_REPLY_TO`.
+1. Criar conta em resend.com → *Domains → Add domain* → `blessedadvantage.pt` → registos DNS indicados pelo Resend.
+2. *API Keys → Create* → `RESEND_API_KEY`. Definir `EMAIL_FROM`, `EMAIL_REPLY_TO` e `ADMIN_ORDER_EMAIL`.
 
 ---
 
-## 7. Envio (Sendcloud — CTT e InPost)
+## 7. Envio, pontos de recolha, etiquetas e tracking (Sendcloud — CTT e InPost)
 
-Já programado: ao confirmar o pagamento, cria o envio no Sendcloud com morada, telefone, peso e nº da encomenda.
-- Com `SENDCLOUD_SHIPPING_METHOD_ID` definido → a etiqueta é gerada automaticamente.
-- Sem ele → a encomenda aparece no painel do Sendcloud para gerar a etiqueta com um clique.
+Tudo passa pelo módulo `netlify/lib/sendcloud.mjs` (**API v3** — a v2 de criação de envios está fechada a contas
+criadas depois de 13/04/2026). As chaves Sendcloud ficam só no servidor.
 
-**A fazer:** criar conta Sendcloud, ligar CTT (e InPost, se disponível), criar chaves da API.
-Fase seguinte: escolha do **cacifo InPost** no checkout.
+**Cliente (carrinho):** escolhe o método de entrega (só os ativos), e — se for InPost/CTT ponto — o **ponto de recolha**
+(pesquisa por código postal, localidade ou localização). Vê Produtos + Portes = Total. O botão Pagar só funciona com
+ponto escolhido. O servidor valida o ponto na Sendcloud e recalcula preços, portes e peso (variante × quantidade + embalagem).
+
+**Gestão → Produtos e site → Envio:** métodos (nome, transportadora, código Sendcloud, preço, grátis a partir de, prazo,
+ponto de recolha, ativo), "Carregar opções da Sendcloud" (mostra códigos e custo contratual), prazo de produção e
+**morada do remetente** (obrigatória para as etiquetas).
+
+**Gestão → Encomendas:** seleção múltipla → **Imprimir N etiquetas** (PDF A6 da Sendcloud, grupos de 20, juntos num só PDF;
+relatório de falhas com os números WLB), etiqueta individual, abrir/atualizar tracking, reenviar cada email,
+**⚠ ENVIO NÃO CRIADO → Tentar novamente** (nunca cria um segundo envio), cancelar (cancela o envio na Sendcloud
+quando possível; **o reembolso faz-se na Stripe**).
+
+**Tracking automático:** webhook `https://<domínio>/api/sendcloud-webhook` (assinatura `Sendcloud-Signature` verificada).
+Alternativa: botão "Atualizar tracking" (consulta a Sendcloud).
+
+**A fazer na Sendcloud:**
+1. Criar conta; ativar CTT e InPost (Portugal); *Settings → Integrations* → criar integração **API** (chaves pública e secreta).
+2. Na integração: ativar **service points** (CTT/InPost) e o **webhook** com o URL acima.
+3. Na gestão: preencher a morada do remetente, "Carregar opções da Sendcloud", aplicar códigos, definir preços e ativar.
+4. Fazer um envio de teste e confirmar a etiqueta e os estados de tracking (os IDs de estado confirmados na documentação
+   são 1000, 11 e 2000; os restantes são reconhecidos pela mensagem — confirmar com a conta real).
 
 ---
 
@@ -177,16 +199,20 @@ public/                      Site (o que é publicado)
 netlify/functions/
   catalog.mjs                /api/catalog — catálogo público
   checkout.mjs               /api/checkout — cria o pagamento na Stripe
-  stripe-webhook.mjs         /api/stripe-webhook — pagamento confirmado → encomenda, email, Sendcloud
+  stripe-webhook.mjs         /api/stripe-webhook — pagamento confirmado → encomenda, Sendcloud, emails
+  sendcloud-webhook.mjs      /api/sendcloud-webhook — tracking automático
+  service-points.mjs         /api/service-points — pesquisa de pontos de recolha
   order.mjs                  /api/order — dados da encomenda para o cliente
   admin.mjs                  /api/admin/* — gestão (protegida por password)
   image.mjs                  /img/… — fotos carregadas na gestão
 netlify/edge-functions/
   maintenance.js             Modo manutenção
 netlify/lib/
-  catalog.mjs                Catálogo: validação, categorias, cores
-  orders.mjs                 Encomendas: guardar, numerar, listar
-  emails.mjs                 Modelos dos emails
+  catalog.mjs                Catálogo: validação, categorias, cores, métodos de envio, remetente
+  orders.mjs                 Encomendas: guardar, numerar (atómico), estados, idempotência
+  sendcloud.mjs              TODAS as chamadas à Sendcloud (API v3)
+  fulfillment.mjs            Envio Sendcloud, tracking e emails (uma vez cada)
+  emails.mjs                 Modelos dos 5 emails
   mailer.mjs                 Envio pelo Resend
 products.json                Catálogo inicial (usado até à 1ª gravação na gestão)
 netlify.toml                 Configuração da Netlify
@@ -210,8 +236,13 @@ Definir na Netlify em *Site configuration → Environment variables* (e no `.env
 | `RESEND_API_KEY` | Chave do Resend (`re_…`) | Para emails |
 | `EMAIL_FROM` | Remetente, ex.: `Welabb <encomendas@blessedadvantage.pt>` | Não |
 | `EMAIL_REPLY_TO` | Email que recebe as respostas dos clientes | Recomendado |
-| `SENDCLOUD_PUBLIC_KEY` / `SENDCLOUD_SECRET_KEY` | Chaves do Sendcloud | Para etiquetas |
-| `SENDCLOUD_SHIPPING_METHOD_ID` | Método de envio (etiqueta automática) | Não |
+| `ADMIN_ORDER_EMAIL` | Recebe o aviso "Nova encomenda paga" | Recomendado |
+| `PACKAGE_WEIGHT_KG` | Peso da embalagem somado a cada envio (ex.: `0.15`) | Não |
+| `SENDCLOUD_PUBLIC_KEY` / `SENDCLOUD_SECRET_KEY` | Chaves da integração API da Sendcloud | Para envios/pontos/etiquetas |
+| `SENDCLOUD_WEBHOOK_SECRET` | Só se a integração tiver uma "Webhook signature key" própria | Não |
+
+O `SENDCLOUD_SHIPPING_METHOD_ID` antigo deixou de ser usado: na API v3 cada método tem o seu código Sendcloud na gestão.
+Modelo completo (sem valores): `.env.example`. Só para testes locais: `SENDCLOUD_MOCK=1`, `EMAIL_MOCK=1` (ignorados no site publicado).
 
 ---
 
@@ -238,6 +269,7 @@ netlify dev --offline --port 8888
 3. **Webhook da Stripe:** *Programadores → Webhooks → Adicionar endpoint* →
    `https://blessedadvantage.pt/api/stripe-webhook`, eventos `checkout.session.completed` e
    `checkout.session.async_payment_succeeded` → copiar o `whsec_…` para `STRIPE_WEBHOOK_SECRET`.
+   **Webhook da Sendcloud:** na integração API, ativar o webhook com `https://blessedadvantage.pt/api/sendcloud-webhook`.
 4. **Domínio:** na Netlify, *Domain management → Add domain* → `blessedadvantage.pt`. No painel do domínio:
    - apagar os 2 registos **A** antigos (104.19.x.x), o **CNAME** que aponta para ele próprio, `_acme-challenge` e `_cf-custom-hostname`;
    - adicionar **A** `blessedadvantage.pt` → `75.2.60.5` e **CNAME** `www` → `<nome-do-site>.netlify.app`
@@ -255,7 +287,9 @@ netlify dev --offline --port 8888
 - [ ] Publicar na Netlify e ligar o domínio
 - [ ] Password forte para a gestão (`ADMIN_PASSWORD`)
 - [ ] Ativar Multibanco na Stripe; desativar Bancontact e EPS
-- [ ] Configurar Resend (domínio + chave) e `EMAIL_REPLY_TO`
+- [ ] Configurar Resend (domínio + chave), `EMAIL_REPLY_TO` e `ADMIN_ORDER_EMAIL`
+- [ ] Sendcloud: conta, CTT + InPost, integração API, service points, webhook, morada do remetente, métodos e preços na gestão
+- [ ] Envio de teste real (etiqueta + tracking) antes de abrir
 - [ ] Preencher nomes, preços, cores e descrições dos 13 produtos
 - [ ] Foto do processo em boa qualidade (mín. 1600 px de largura) e, se possível, a imagem original do hero
 - [ ] Identificação do vendedor no rodapé (nome/empresa, NIF, morada) — obrigatório em Portugal
@@ -264,7 +298,6 @@ netlify dev --offline --port 8888
 - [ ] Renovar `blessedadvantage.pt` antes de 17/11/2026
 
 **A seguir**
-- [ ] Sendcloud (CTT + InPost) — etiquetas automáticas
 - [ ] Escolha de cacifo InPost no checkout
 - [ ] Fatura certificada automática (InvoiceXpress ou Moloni) — confirmar com o contabilista
 - [ ] Envio automático do código de 10% aos subscritores (ex.: Brevo/Mailchimp)
@@ -297,3 +330,4 @@ netlify dev --offline --port 8888
 | 29/09/2026 | Conta Stripe de teste ligada; 1.ª compra de teste com sucesso |
 | 29/09/2026 | Encomendas, emails, página do cliente, gestão de encomendas |
 | 29/09/2026 | Modo manutenção "Voltamos em breve" |
+| 02/10/2026 | Envio Sendcloud v3: métodos, pontos de recolha InPost/CTT, etiquetas em lote, tracking automático, 5 emails |

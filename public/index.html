@@ -195,13 +195,40 @@ NOZZLE_TEMP: 210°C</pre>
     </div>
     <ul class="cart-items" id="cartItems"></ul>
     <div class="drawer-foot">
-      <div class="row"><span>Subtotal</span><strong id="cartSubtotal">0,00 €</strong></div>
+      <section class="delivery" id="delivery" aria-label="Entrega">
+        <p class="label">Entrega</p>
+        <div class="methods" id="deliveryMethods" role="radiogroup" aria-label="Método de entrega"></div>
+        <div class="point" id="pointBox" hidden>
+          <div class="point-selected" id="pointSelected" hidden></div>
+          <button type="button" class="btn btn-outline btn-block btn-sm-shop" id="pointBtn">Escolher ponto de recolha</button>
+        </div>
+      </section>
+      <div class="totals-shop">
+        <div class="row"><span>Produtos</span><span id="cartSubtotal">0,00 €</span></div>
+        <div class="row"><span>Portes</span><span id="cartShipping">—</span></div>
+        <div class="row total"><span>Total</span><strong id="cartTotal">0,00 €</strong></div>
+      </div>
       <p class="muted small" id="shippingNote"></p>
-      <button class="btn btn-dark btn-block" id="checkoutBtn">Finalizar compra</button>
+      <button class="btn btn-dark btn-block" id="checkoutBtn">Pagar</button>
       <p class="error" id="checkoutError" role="alert"></p>
     </div>
   </aside>
   <div class="backdrop" id="backdrop"></div>
+
+  <!-- Escolha do ponto de recolha -->
+  <dialog class="product-dialog point-dialog" id="pointDialog" aria-labelledby="pointTitle">
+    <form method="dialog" class="dialog-close"><button aria-label="Fechar">×</button></form>
+    <p class="label" id="pointCarrier">Ponto de recolha</p>
+    <h2 id="pointTitle">Escolhe o ponto de recolha</h2>
+    <div class="point-search">
+      <label class="field"><span>Código postal ou localidade</span>
+        <input type="text" id="pointQuery" placeholder="ex.: 2870-746 ou Montijo" autocomplete="postal-code" inputmode="text">
+      </label>
+      <button type="button" class="btn btn-outline btn-sm-shop" id="pointGeo">Usar a minha localização</button>
+    </div>
+    <p class="muted small" id="pointStatus" role="status">Escreve pelo menos 3 caracteres.</p>
+    <ul class="point-list" id="pointList"></ul>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

@@ -19,8 +19,32 @@ export async function loadCatalog() {
     ...catalog,
     categories: catalog.categories || seed.categories,
     site: catalog.site || {},
+    shippingMethods: normalizeMethods(catalog),
+    sender: catalog.sender || {},
     products: catalog.products.map(normalizeProduct)
   };
+}
+
+// Métodos de envio. Catálogos antigos só tinham "shipping" (um preço único CTT):
+// nesse caso cria-se o método "CTT · entrega em casa" com os mesmos valores.
+function normalizeMethods(catalog) {
+  if (Array.isArray(catalog.shippingMethods) && catalog.shippingMethods.length) return catalog.shippingMethods;
+  const s = catalog.shipping || {};
+  return [{
+    id: "ctt-casa", name: s.label || "CTT · entrega em casa", carrier: "ctt", sendcloudCode: "",
+    price: s.price == null ? 450 : s.price, freeFrom: s.freeFrom || 0, days: s.days || [2, 4],
+    requiresServicePoint: false, enabled: true
+  }];
+}
+
+// Método de envio ativo e com preço definido (ou null)
+export function findMethod(catalog, id) {
+  return normalizeMethods(catalog).find((m) => m.id === id && m.enabled && m.price != null) || null;
+}
+
+// Preço dos portes para o cliente (grátis a partir de X € — a expedição é criada na mesma)
+export function shippingPrice(method, subtotal) {
+  return method.freeFrom > 0 && subtotal >= method.freeFrom ? 0 : method.price;
 }
 
 export async function saveCatalog(catalog) {
@@ -31,7 +55,11 @@ export async function saveCatalog(catalog) {
 // e não podem ser comprados (o checkout exige uma variação com preço).
 export function publicCatalog(catalog) {
   return {
-    shipping: catalog.shipping,
+    shipping: { productionDays: (catalog.shipping && catalog.shipping.productionDays) || [3, 5] },
+    // Só o necessário para o cliente escolher (sem códigos internos da Sendcloud)
+    shippingMethods: normalizeMethods(catalog)
+      .filter((m) => m.enabled && m.price != null)
+      .map(({ id, name, carrier, price, freeFrom, days, requiresServicePoint }) => ({ id, name, carrier, price, freeFrom, days, requiresServicePoint })),
     categories: catalog.categories || seed.categories,
     site: catalog.site || {},
     products: catalog.products.filter((p) => p.visible).map(normalizeProduct)
@@ -148,5 +176,40 @@ export function sanitizeCatalog(input) {
     if (v) site[key] = v;
   }
 
-  return { shipping, categories, site, products };
+  // Métodos de envio
+  const methodIds = new Set();
+  const methodsIn = Array.isArray(input.shippingMethods) && input.shippingMethods.length ? input.shippingMethods : normalizeMethods({ shipping });
+  const shippingMethods = methodsIn.slice(0, 12).map((m, i) => {
+    const method = {
+      id: text(m.id, 40).toLowerCase() || `metodo-${i + 1}`,
+      name: text(m.name, 60),
+      carrier: text(m.carrier, 40).toLowerCase(),
+      sendcloudCode: text(m.sendcloudCode, 120),
+      price: m.price === "" || m.price == null ? null : cents(m.price),
+      freeFrom: m.freeFrom ? cents(m.freeFrom) : 0,
+      days: dayRange(m.days, [2, 4], 1),
+      requiresServicePoint: Boolean(m.requiresServicePoint),
+      enabled: Boolean(m.enabled)
+    };
+    const label = method.name || `Método ${i + 1}`;
+    if (!/^[a-z0-9-]+$/.test(method.id) || methodIds.has(method.id)) throw new Error(`${label}: identificador inválido`);
+    if (!method.name) throw new Error(`Método ${i + 1}: falta o nome`);
+    if (method.price != null && !(method.price >= 0 && method.price <= 10000)) throw new Error(`${label}: preço inválido`);
+    if (method.enabled && method.price == null) throw new Error(`${label}: define o preço antes de ativar`);
+    if (method.enabled && method.requiresServicePoint && !method.carrier) throw new Error(`${label}: indica a transportadora (para procurar pontos de recolha)`);
+    if (!(method.freeFrom >= 0)) throw new Error(`${label}: valor de envio grátis inválido`);
+    methodIds.add(method.id);
+    return method;
+  });
+  if (!shippingMethods.some((m) => m.enabled)) throw new Error("Tem de existir pelo menos um método de envio ativo");
+
+  // Morada do remetente (usada nas etiquetas da Sendcloud)
+  const sIn = input.sender || {};
+  const sender = {
+    name: text(sIn.name, 80), street: text(sIn.street, 120), postalCode: text(sIn.postalCode, 12),
+    city: text(sIn.city, 60), phone: text(sIn.phone, 30), email: text(sIn.email, 120)
+  };
+  if (sender.postalCode && !/^\d{4}-\d{3}$/.test(sender.postalCode)) throw new Error("Código postal do remetente inválido (formato 1234-567)");
+
+  return { shipping, shippingMethods, sender, categories, site, products };
 }

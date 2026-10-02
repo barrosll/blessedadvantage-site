@@ -248,3 +248,34 @@ h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Entrega no carrinho */
+.drawer-foot { max-height: 62vh; overflow-y: auto; }
+.delivery { margin-bottom: 14px; }
+.delivery .label { margin-bottom: 10px; }
+.methods { display: grid; gap: 6px; }
+.method { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; border: 1px solid var(--line); padding: 10px 12px; cursor: pointer; }
+.method:has(input:checked) { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.method input { accent-color: var(--dark); margin: 0; }
+.method .m-name { display: grid; font-size: .92rem; line-height: 1.35; }
+.method .m-price { font-weight: 600; white-space: nowrap; }
+.point { margin-top: 10px; display: grid; gap: 8px; }
+.point-selected { display: grid; gap: 1px; background: var(--bg); padding: 10px 12px; font-size: .88rem; line-height: 1.45; }
+.point-selected .ok { font: 500 .7rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: #4f7a00; }
+.btn-sm-shop { padding: 10px 16px; font-size: .82rem; }
+.totals-shop { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 2px; }
+.totals-shop .row { display: flex; justify-content: space-between; color: var(--muted); font-size: .95rem; }
+.totals-shop .row.total { color: var(--text); font-size: 1.1rem; margin-top: 4px; }
+.drawer-foot .btn-dark { margin-top: 10px; }
+.drawer-foot .btn-dark:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Escolha do ponto de recolha */
+.point-dialog { width: min(560px, calc(100% - 24px)); }
+.point-dialog h2 { font-size: clamp(1.5rem, 4vw, 2rem); }
+.point-search { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+.point-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.point-item { width: 100%; display: grid; gap: 1px; text-align: left; font: inherit; font-size: .92rem; line-height: 1.45; color: var(--text); background: var(--surface); border: 1px solid var(--line); padding: 10px 12px; cursor: pointer; }
+.point-item:hover, .point-item:focus-visible { border-color: var(--text); outline: none; }
+@media (max-width: 520px) {
+  .point-search { grid-template-columns: 1fr; }
+}

@@ -1,10 +1,10 @@
-// Recebe a confirmação de pagamento da Stripe e cria o envio no Sendcloud (CTT / InPost).
+// Recebe a confirmação de pagamento da Stripe → cria a encomenda (uma só vez), o envio na Sendcloud e envia os emails.
 // Nota: com Multibanco o pagamento só chega quando o cliente paga a referência,
 // por isso tratamos "completed" (pago na hora) e "async_payment_succeeded" (pago depois).
-import { loadCatalog } from "../lib/catalog.mjs";
-import { createOrder, findTokenBySession, saveOrder } from "../lib/orders.mjs";
-import { orderConfirmationEmail, computeEta } from "../lib/emails.mjs";
-import { sendEmail } from "../lib/mailer.mjs";
+import { loadCatalog, findMethod } from "../lib/catalog.mjs";
+import { createOrder, claimSession, updateOrder } from "../lib/orders.mjs";
+import { computeEta } from "../lib/emails.mjs";
+import { ensureShipment, sendOrderEmail, siteUrlFrom } from "../lib/fulfillment.mjs";
 
 export const config = { path: "/api/stripe-webhook" };
 
@@ -63,6 +63,7 @@ function titleCase(word) {
 
 async function buildOrder(session) {
   const catalog = await loadCatalog();
+  const meta = session.metadata || {};
   const customer = session.customer_details || {};
   const shipping = (session.collected_information && session.collected_information.shipping_details) || session.shipping_details || {};
   const addr = shipping.address || customer.address || {};
@@ -83,10 +84,20 @@ async function buildOrder(session) {
     };
   });
 
+  // Método de envio escolhido (o preço cobrado é o que a Stripe registou na sessão)
+  const method = findMethod(catalog, meta.shipping_method || "") ||
+    (catalog.shippingMethods || []).find((m) => m.id === meta.shipping_method) || null;
+  const servicePoint = meta.sp_id
+    ? { id: meta.sp_id, name: meta.sp_name || "", street: meta.sp_address || "", postalCode: meta.sp_postal_code || "", city: meta.sp_city || "", carrier: meta.sp_carrier || "" }
+    : null;
+  const shippingDays = (method && method.days) || catalog.shipping.days || [2, 4];
+  const productionDays = catalog.shipping.productionDays || [3, 5];
+
   return {
     sessionId: session.id,
     createdAt: paidAt.toISOString(),
-    email: customer.email,
+    paidAt: paidAt.toISOString(),
+    email: customer.email || session.customer_email || "",
     name,
     firstName: titleCase(name.split(" ")[0]) || "cliente",
     phone: customer.phone || "",
@@ -95,87 +106,49 @@ async function buildOrder(session) {
     items,
     subtotal: session.amount_subtotal,
     shipping: (session.total_details && session.total_details.amount_shipping) || 0,
+    shippingPrice: (session.total_details && session.total_details.amount_shipping) || 0,
     discount: (session.total_details && session.total_details.amount_discount) || 0,
     total: session.amount_total,
-    weightKg: (session.metadata && session.metadata.weight_kg) || "0.5",
-    productionDays: catalog.shipping.productionDays || [3, 5],
-    shippingDays: catalog.shipping.days,
-    eta: computeEta(paidAt, catalog.shipping.productionDays || [3, 5], catalog.shipping.days)
-  };
-}
-
-async function createSendcloudParcel(order) {
-  const publicKey = Netlify.env.get("SENDCLOUD_PUBLIC_KEY");
-  const secretKey = Netlify.env.get("SENDCLOUD_SECRET_KEY");
-  if (!publicKey || !secretKey) {
-    console.log("Sendcloud não configurado — envio não criado para", order.number);
-    return null;
-  }
-  const methodId = Netlify.env.get("SENDCLOUD_SHIPPING_METHOD_ID");
-  const a = order.address;
-  const parcel = {
-    name: a.name,
-    email: order.email,
-    telephone: order.phone,
-    address: a.line1,
-    address_2: a.line2,
-    city: a.city,
-    postal_code: a.postalCode,
-    country: a.country,
-    order_number: order.number,
-    weight: order.weightKg,
-    // Sem método definido, a encomenda fica no painel do Sendcloud para gerar a etiqueta à mão
-    request_label: Boolean(methodId)
-  };
-  if (methodId) parcel.shipment = { id: Number(methodId) };
-
-  const res = await fetch("https://panel.sendcloud.sc/api/v2/parcels", {
-    method: "POST",
-    headers: { Authorization: "Basic " + btoa(`${publicKey}:${secretKey}`), "Content-Type": "application/json" },
-    body: JSON.stringify({ parcel })
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Sendcloud ${res.status}: ${JSON.stringify(data.error || data)}`);
-  return {
-    id: data.parcel && data.parcel.id,
-    trackingNumber: (data.parcel && data.parcel.tracking_number) || "",
-    trackingUrl: (data.parcel && data.parcel.tracking_url) || ""
+    // Envio
+    shippingMethod: method ? method.id : meta.shipping_method || "",
+    shippingMethodName: method ? method.name : "CTT",
+    shippingCarrier: method ? method.carrier : "ctt",
+    shippingOptionCode: method ? method.sendcloudCode : "",
+    servicePoint,
+    parcelWeight: meta.weight_kg || "0.5",
+    shippingStatus: "pending",
+    productionDays,
+    shippingDays,
+    eta: computeEta(paidAt, productionDays, shippingDays)
   };
 }
 
 async function handlePaid(sessionId, siteUrl) {
-  // A Stripe pode repetir o mesmo aviso: se a encomenda já existe, não faz nada
-  if (await findTokenBySession(sessionId)) {
-    console.log("Encomenda já registada para", sessionId);
-    return;
-  }
-  const session = await fetchSession(sessionId);
-  const order = await createOrder(await buildOrder(session));
-  order.trackUrl = `${siteUrl}/encomenda.html?t=${order.token}`;
-  console.log("Nova encomenda:", order.number, order.email, (order.total / 100).toFixed(2), "€");
+  // Uma sessão de pagamento = uma encomenda, mesmo que a Stripe repita o aviso (ou envie dois em paralelo)
+  const claim = await claimSession(sessionId);
+  if (claim.busy) throw new Error("Encomenda a ser registada por outro pedido; a Stripe volta a tentar");
 
-  // A partir daqui a encomenda já está guardada: falhas no email ou no Sendcloud ficam registadas
-  // na encomenda (e visíveis na gestão), sem fazer a Stripe repetir o aviso.
-  try {
-    const email = orderConfirmationEmail(order, siteUrl, Netlify.env.get("EMAIL_REPLY_TO"));
-    const sent = await sendEmail({ to: order.email, ...email });
-    if (sent.skipped) order.emailError = "Resend ainda não configurado";
-    else order.confirmationSentAt = new Date().toISOString();
-  } catch (err) {
-    console.error("Falha no email de confirmação:", err.message);
-    order.emailError = err.message;
-  }
-  try {
-    const parcel = await createSendcloudParcel(order);
-    if (parcel) {
-      order.sendcloud = parcel;
-      if (parcel.trackingNumber) order.tracking = { number: parcel.trackingNumber, url: parcel.trackingUrl };
+  let token = claim.token;
+  if (claim.claimed) {
+    const session = await fetchSession(sessionId);
+    const { order, created } = await createOrder(await buildOrder(session));
+    token = order.token;
+    if (!created) {
+      // Outro aviso do mesmo pagamento criou a encomenda ao mesmo tempo: ele trata do envio e dos emails
+      console.log("Encomenda já criada por outro aviso:", order.number);
+      return;
     }
-  } catch (err) {
-    console.error("Falha no Sendcloud:", err.message);
-    order.sendcloudError = err.message;
+    await updateOrder(token, (o) => { o.trackUrl = `${siteUrl}/encomenda.html?t=${o.token}`; });
+    console.log("Nova encomenda:", order.number, order.email, (order.total / 100).toFixed(2), "€", order.shippingMethodName);
+  } else {
+    console.log("Encomenda já registada para", sessionId, "— a completar passos em falta (se houver)");
   }
-  await saveOrder(order);
+
+  // Passos seguintes: cada um é idempotente, por isso um aviso repetido só completa o que falta.
+  // Falhas (Sendcloud/Resend) ficam registadas na encomenda e não afetam o pagamento.
+  await ensureShipment(token);
+  await sendOrderEmail(token, "confirmation", siteUrl);
+  await sendOrderEmail(token, "admin", siteUrl);
 }
 
 export default async (req) => {
@@ -196,9 +169,9 @@ export default async (req) => {
 
   if (paid) {
     try {
-      await handlePaid(session.id, Netlify.env.get("URL") || new URL(req.url).origin);
+      await handlePaid(session.id, siteUrlFrom(req));
     } catch (err) {
-      // Erro antes de a encomenda ser guardada: a Stripe volta a tentar mais tarde
+      // Só chega aqui se a encomenda não pôde ser registada: a Stripe volta a tentar mais tarde
       console.error("Erro ao registar encomenda:", err.message);
       return new Response("Erro ao registar encomenda", { status: 500 });
     }

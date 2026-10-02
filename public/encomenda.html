@@ -35,6 +35,11 @@
     .totals .grand { color: var(--text); font-weight: 700; font-size: 1.1rem; }
     .tracking-code { font: 600 1.15rem var(--mono); letter-spacing: .05em; }
     .cancelled { border-color: var(--error); color: var(--error); }
+    @media (max-width: 600px) {
+      .track li { font-size: .68rem; line-height: 1.25; }
+      .track li::before { width: 26px; height: 26px; line-height: 26px; }
+      .track li::after { top: 13px; }
+    }
   </style>
 </head>
 <body>

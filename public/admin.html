@@ -105,6 +105,34 @@
       .order-card summary { grid-template-columns: 1fr auto; }
       .order-card .when { display: none; }
     }
+    .bulkbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); padding: 10px 14px; margin-top: 16px; position: sticky; top: 64px; z-index: 5; }
+    .bulk-progress { margin: 10px 0 0; padding: 10px 14px; background: #fffbe0; border-left: 3px solid var(--lime); font-size: .92rem; white-space: pre-line; }
+    .order-card summary { grid-template-columns: auto auto 1fr auto auto auto; }
+    .order-card .sel { width: 18px; height: 18px; accent-color: var(--dark); }
+    .order-card .carrier { font: 500 .72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .order-card .trk { font: 500 .75rem var(--mono); color: var(--muted); }
+    .st-paid { background: var(--lime); }
+    .st-production { background: #ffe29a; }
+    .st-ready_to_ship { background: #ffd0a8; }
+    .st-shipped, .st-in_transit { background: #cfe3ff; }
+    .st-ready_for_pickup { background: #e4d4ff; }
+    .st-delivered { background: #d9f2c7; }
+    .st-cancelled, .st-returned { background: #fdecea; color: var(--error); }
+    .warn-ship { background: #fdecea; color: var(--error); font: 600 .72rem var(--mono); padding: 3px 8px; border-radius: 999px; }
+    .o-warn { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .o-warn .btn { background: var(--error); }
+    .emails-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: .88rem; }
+    .emails-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .emails-list .btn { padding: 4px 10px; font-size: .72rem; }
+    .methods-admin { display: grid; gap: 10px; }
+    .method-row { display: grid; grid-template-columns: 1.4fr .9fr 1.3fr .7fr .7fr .9fr auto; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); }
+    .method-row label { display: grid; gap: 4px; font-size: .75rem; color: var(--muted); }
+    .method-row input[type=text] { padding: 7px 9px; font-size: .9rem; }
+    .method-row .flags { display: grid; gap: 4px; font-size: .8rem; color: var(--text); }
+    .method-row .flags label { display: flex; gap: 6px; align-items: center; font-size: .8rem; color: var(--text); }
+    .sc-options { border: 1px dashed var(--line); padding: 12px; margin-bottom: 18px; display: grid; gap: 6px; font-size: .88rem; }
+    .sc-options .opt { display: flex; justify-content: space-between; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); padding: 6px 0; }
+    @media (max-width: 900px) { .method-row { grid-template-columns: 1fr 1fr; } }
     .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--navy); color: var(--on-navy); padding: 10px 20px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50; }
     .toast.show { opacity: 1; }
     .toast.err { background: var(--error); color: #fff; }
@@ -146,17 +174,26 @@
         <h1>Encomendas</h1>
         <div class="filters-admin">
           <select id="orderFilter" class="field-select" aria-label="Filtrar encomendas">
-            <option value="abertas">Por tratar (pagas e em produção)</option>
+            <option value="abertas">Por tratar (a preparar)</option>
+            <option value="erro">⚠ Envio não criado</option>
+            <option value="transito">Enviadas / em trânsito</option>
+            <option value="ready_for_pickup">Disponíveis para recolha</option>
+            <option value="delivered">Entregues</option>
+            <option value="cancelled">Canceladas / devolvidas</option>
             <option value="">Todas</option>
-            <option value="paga">Pagas</option>
-            <option value="producao">Em produção</option>
-            <option value="enviada">Enviadas</option>
-            <option value="entregue">Entregues</option>
-            <option value="cancelada">Canceladas</option>
           </select>
           <button class="btn btn-ghost btn-sm" id="refreshOrders">Atualizar</button>
         </div>
       </div>
+      <p class="hint" id="sendcloudNotice" hidden></p>
+      <div class="bulkbar" id="bulkBar">
+        <label class="check" style="margin:0"><input type="checkbox" id="selectAll"> Selecionar todas</label>
+        <span id="selCount" class="muted small"></span>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" id="bulkLabels" disabled>Imprimir etiquetas</button>
+        <button class="btn btn-ghost btn-sm" id="bulkTracking" disabled>Atualizar tracking</button>
+      </div>
+      <p class="bulk-progress" id="bulkProgress" role="status" hidden></p>
       <div class="orders" id="orderList"></div>
     </section>
 
@@ -186,20 +223,35 @@
       </div>
     </div>
 
-    <h2>Portes de envio</h2>
+    <h2>Envio</h2>
     <form class="panel" id="shippingForm">
+      <strong>Métodos de entrega</strong>
+      <p class="hint" style="margin:2px 0 10px">O cliente vê só os métodos <em>ativos</em>. O preço é o que o cliente paga; “grátis a partir de” não altera o custo real do envio.
+        O “código Sendcloud” liga o método à opção de envio da tua conta (usa “Carregar opções da Sendcloud”).</p>
+      <div class="methods-admin" id="methodRows"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px">
+        <button type="button" class="btn btn-ghost btn-sm" id="addMethod">+ Método</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="loadSendcloud">Carregar opções da Sendcloud</button>
+      </div>
+      <div class="sc-options" id="scOptions" hidden></div>
+
       <div class="grid-2">
-        <label class="field"><span>Nome do envio</span><input type="text" id="shipLabel" maxlength="80"></label>
-        <label class="field"><span>Preço (€)</span><input type="text" id="shipPrice" inputmode="decimal"></label>
-        <label class="field"><span>Grátis a partir de (€)</span><input type="text" id="shipFree" inputmode="decimal" placeholder="vazio = nunca"></label>
-        <label class="field"><span>Envio CTT (dias úteis)</span>
-          <span style="display:flex;gap:8px;align-items:center;margin:0"><input type="number" id="shipMin" min="1" max="30"> a <input type="number" id="shipMax" min="1" max="30"></span>
-        </label>
         <label class="field"><span>Produção (dias úteis)</span>
           <span style="display:flex;gap:8px;align-items:center;margin:0"><input type="number" id="prodMin" min="0" max="60"> a <input type="number" id="prodMax" min="0" max="60"></span>
         </label>
       </div>
-      <button class="btn btn-sm">Guardar portes</button>
+
+      <strong style="display:block;margin-top:8px">Morada do remetente</strong>
+      <p class="hint" style="margin:2px 0 10px">Usada nas etiquetas da Sendcloud.</p>
+      <div class="grid-2">
+        <label class="field"><span>Nome / empresa</span><input type="text" id="sndName" maxlength="80"></label>
+        <label class="field"><span>Rua e número</span><input type="text" id="sndStreet" maxlength="120" placeholder="ex.: Rua Melo Antunes 12"></label>
+        <label class="field"><span>Código postal</span><input type="text" id="sndPostal" maxlength="8" placeholder="1234-567"></label>
+        <label class="field"><span>Localidade</span><input type="text" id="sndCity" maxlength="60"></label>
+        <label class="field"><span>Telefone</span><input type="text" id="sndPhone" maxlength="30"></label>
+        <label class="field"><span>Email</span><input type="text" id="sndEmail" maxlength="120"></label>
+      </div>
+      <button class="btn btn-sm">Guardar envio</button>
     </form>
       </section>
   </main>

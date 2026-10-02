@@ -12,6 +12,58 @@
       5
     ]
   },
+  "shippingMethods": [
+    {
+      "id": "ctt-casa",
+      "name": "CTT · entrega em casa",
+      "carrier": "ctt",
+      "sendcloudCode": "",
+      "price": 450,
+      "freeFrom": 6000,
+      "days": [
+        2,
+        4
+      ],
+      "requiresServicePoint": false,
+      "enabled": true
+    },
+    {
+      "id": "inpost-ponto",
+      "name": "InPost · Ponto Pack / Locker",
+      "carrier": "inpost",
+      "sendcloudCode": "",
+      "price": null,
+      "freeFrom": 6000,
+      "days": [
+        2,
+        4
+      ],
+      "requiresServicePoint": true,
+      "enabled": false
+    },
+    {
+      "id": "ctt-ponto",
+      "name": "CTT · ponto de recolha",
+      "carrier": "ctt",
+      "sendcloudCode": "",
+      "price": null,
+      "freeFrom": 6000,
+      "days": [
+        2,
+        4
+      ],
+      "requiresServicePoint": true,
+      "enabled": false
+    }
+  ],
+  "sender": {
+    "name": "",
+    "street": "",
+    "postalCode": "",
+    "city": "",
+    "phone": "",
+    "email": ""
+  },
   "categories": [
     {
       "id": "decoracao",
