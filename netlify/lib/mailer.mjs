@@ -1,6 +1,7 @@
 // Envio de emails pelo Resend (https://resend.com).
 // Sem RESEND_API_KEY (ex.: em testes locais) o email não é enviado, só registado no log.
-export async function sendEmail({ to, subject, html }) {
+// attachments: [{ filename, content (base64) }]
+export async function sendEmail({ to, subject, html, attachments }) {
   const apiKey = Netlify.env.get("RESEND_API_KEY");
   const from = Netlify.env.get("EMAIL_FROM") || "Welabb <encomendas@welabb.pt>";
   const replyTo = Netlify.env.get("EMAIL_REPLY_TO"); // caixa de email que lê (para as respostas dos clientes)
@@ -22,7 +23,7 @@ export async function sendEmail({ to, subject, html }) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], ...(replyTo ? { reply_to: replyTo } : {}), subject, html })
+    body: JSON.stringify({ from, to: [to], ...(replyTo ? { reply_to: replyTo } : {}), subject, html, ...(attachments && attachments.length ? { attachments } : {}) })
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Resend ${res.status}: ${data.message || JSON.stringify(data)}`);

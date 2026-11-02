@@ -2,6 +2,7 @@
 // O browser só envia o método e o código postal/localidade (ou coordenadas); a chamada à Sendcloud é feita aqui.
 import { loadCatalog, findMethod } from "../lib/catalog.mjs";
 import { getServicePoints, isConfigured, NOT_CONFIGURED } from "../lib/sendcloud.mjs";
+import * as ctt from "../lib/ctt.mjs";
 
 export const config = { path: "/api/service-points" };
 
@@ -16,13 +17,31 @@ export default async (req) => {
   const params = new URL(req.url).searchParams;
   const method = findMethod(await loadCatalog(), params.get("method") || "");
   if (!method || !method.requiresServicePoint) return json({ error: "Método de entrega inválido" }, 400);
-  if (!isConfigured()) return json({ error: "A pesquisa de pontos de recolha ainda não está disponível. " + NOT_CONFIGURED }, 503);
 
   const lat = Number(params.get("lat"));
   const lng = Number(params.get("lng"));
   const hasCoords = params.has("lat") && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
   const query = String(params.get("q") || "").trim().slice(0, 60);
   if (!hasCoords && query.length < 3) return json({ error: "Escreve o código postal ou a localidade" }, 400);
+
+  // Métodos CTT: lojas, postos e cacifos da lista da CTT (cache diária)
+  if (method.cttProduct) {
+    if (!ctt.isConfigured()) return json({ error: "A pesquisa de pontos de recolha ainda não está disponível. " + ctt.NOT_CONFIGURED }, 503);
+    try {
+      const points = await ctt.searchPoints(hasCoords ? { latitude: lat, longitude: lng } : { query });
+      return json({
+        points: points.map((p) => ({
+          id: p.id, name: p.name, carrier: "ctt", type: p.type === "ParcelLocker" ? "locker" : "", street: p.street, postalCode: p.postalCode, city: p.city,
+          distance: p.distanceKm != null ? Math.round(p.distanceKm * 1000) : null, openingTimes: null, isExpired: false
+        }))
+      });
+    } catch (err) {
+      console.error("Pontos CTT:", err.message);
+      return json({ error: "Não foi possível procurar pontos de recolha agora. Tenta novamente." }, 502);
+    }
+  }
+
+  if (!isConfigured()) return json({ error: "A pesquisa de pontos de recolha ainda não está disponível. " + NOT_CONFIGURED }, 503);
 
   try {
     const points = await getServicePoints({

@@ -148,14 +148,14 @@
     var errors = o.emailErrors || {};
     var warns = (shipError(o)
         ? '<div class="o-warn"><span><strong>⚠ ENVIO NÃO CRIADO</strong><br>' + esc(o.shippingError || "") + '</span><button class="btn btn-sm" data-act="retry-shipment">Tentar novamente</button></div>'
-        : o.shippingStatus === "not_configured" ? '<div class="o-warn" style="background:#fffbe0;color:#5c5c00">Sendcloud ainda não configurado — envio por criar.</div>' : "");
+        : o.shippingStatus === "not_configured" ? '<div class="o-warn" style="background:#fffbe0;color:#5c5c00">' + (o.cttProduct ? "CTT" : "Sendcloud") + ' ainda não configurado — envio por criar.</div>' : "");
     var hasNote = o.items.some(function (it) { return it.note; });
     var emails = Object.keys(EMAILS).filter(function (k) { return k !== "pickup" || sp; }).map(function (k) {
       var at = o[EMAIL_FIELD[k]];
       return "<li><span>" + EMAILS[k] + ': <span class="muted">' + (at ? "enviado " + dateFmt.format(new Date(at)) : errors[k] ? "⚠ " + esc(errors[k]) : "—") + "</span></span>" +
         '<button class="btn btn-ghost" data-act="resend" data-type="' + k + '">' + (at ? "Reenviar" : "Enviar") + "</button></li>";
     }).join("");
-    var canLabel = Boolean(o.sendcloudParcelId);
+    var canLabel = Boolean(o.sendcloudParcelId || o.cttObject);
     return '<details class="order-card" data-token="' + esc(o.token) + '">' +
       '<summary><input type="checkbox" class="sel" data-sel="' + esc(o.token) + '"' + (selected[o.token] ? " checked" : "") + ' aria-label="Selecionar ' + esc(o.number) + '">' +
       '<span class="num">' + esc(o.number) + "</span>" +
@@ -174,7 +174,8 @@
         "<strong>" + esc(o.shippingMethodName || "—") + "</strong>" + (o.parcelWeight ? " · " + esc(o.parcelWeight) + " kg" : "") + "<br>" +
         (sp ? "Ponto: " + esc(sp.name) + " — " + esc(sp.street) + ", " + esc(sp.postalCode) + " " + esc(sp.city) + "<br>" : "") +
         (o.sendcloudStatus ? "Sendcloud: " + esc(o.sendcloudStatus) + "<br>" : "") +
-        (o.labelPrintedAt ? "Etiqueta impressa " + dateFmt.format(new Date(o.labelPrintedAt)) + "<br>" : "") + "</p>" +
+        (o.labelPrintedAt ? "Etiqueta impressa " + dateFmt.format(new Date(o.labelPrintedAt)) + "<br>" : "") +
+        (canLabel ? "Primeiro scan da transportadora: " + (o.shippedAt ? "✓ confirmado " + dateFmt.format(new Date(o.shippedAt)) : "⏳ ainda não") + "<br>" : "") + "</p>" +
         '<h4 style="margin-top:18px">Cliente</h4><p class="small" style="margin:0;line-height:1.7">' +
         esc(a.name) + "<br>" + esc(a.line1) + (a.line2 ? "<br>" + esc(a.line2) : "") + "<br>" + esc(a.postalCode) + " " + esc(a.city) + "<br>" +
         '<a href="mailto:' + esc(o.email) + '">' + esc(o.email) + "</a> · " + esc(o.phone) + (o.taxId ? "<br>NIF " + esc(o.taxId) : "") + "</p>" +
@@ -488,7 +489,11 @@
       return '<div class="method-row">' +
         f("name", "Nome (cliente vê)", m.name, ' maxlength="60"') +
         f("carrier", "Transportadora", m.carrier, ' placeholder="ex.: ctt" maxlength="40"') +
-        f("sendcloudCode", "Código Sendcloud", m.sendcloudCode, ' placeholder="carregar da Sendcloud" maxlength="120"') +
+        '<label>Serviço CTT<select data-m="cttProduct" data-i="' + i + '">' +
+          [["", "— (usa Sendcloud)"], ["EMSF057.01", "CTT Em 2 dias"], ["EMSF056.01", "CTT Para amanhã"]].map(function (p) {
+            return '<option value="' + p[0] + '"' + ((m.cttProduct || "") === p[0] ? " selected" : "") + ">" + p[1] + "</option>";
+          }).join("") + "</select></label>" +
+        (m.cttProduct ? "" : f("sendcloudCode", "Código Sendcloud", m.sendcloudCode, ' placeholder="carregar da Sendcloud" maxlength="120"')) +
         f("price", "Preço (€)", m.price == null ? "" : toEuros(m.price), ' inputmode="decimal" placeholder="—"') +
         f("freeFrom", "Grátis a partir (€)", m.freeFrom ? toEuros(m.freeFrom) : "", ' inputmode="decimal" placeholder="nunca"') +
         '<label>Transporte (dias)<span style="display:flex;gap:4px;align-items:center"><input type="text" data-m="d0" data-i="' + i + '" value="' + m.days[0] + '" inputmode="numeric" style="width:42px"> a <input type="text" data-m="d1" data-i="' + i + '" value="' + m.days[1] + '" inputmode="numeric" style="width:42px"></span></label>' +
@@ -512,6 +517,11 @@
   $("methodRows").addEventListener("change", function (e) {
     var el = e.target, m = methodsDraft[Number(el.dataset.i)];
     if (m && (el.dataset.m === "enabled" || el.dataset.m === "requiresServicePoint")) m[el.dataset.m] = el.checked;
+    if (m && el.dataset.m === "cttProduct") {
+      m.cttProduct = el.value;
+      if (el.value) m.carrier = "ctt";
+      renderMethods();
+    }
   });
   $("methodRows").addEventListener("click", function (e) {
     var b = e.target.closest("[data-delmethod]");
@@ -520,7 +530,7 @@
     renderMethods();
   });
   $("addMethod").addEventListener("click", function () {
-    methodsDraft.push({ id: "metodo-" + randomId(4), name: "", carrier: "", sendcloudCode: "", price: null, freeFrom: 0, days: [2, 4], requiresServicePoint: false, enabled: false });
+    methodsDraft.push({ id: "metodo-" + randomId(4), name: "", carrier: "", sendcloudCode: "", cttProduct: "", price: null, freeFrom: 0, days: [2, 4], requiresServicePoint: false, enabled: false });
     renderMethods();
   });
 

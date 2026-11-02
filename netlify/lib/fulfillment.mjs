@@ -3,6 +3,7 @@
 import { loadCatalog } from "./catalog.mjs";
 import { getOrder, updateOrder, applyStatus } from "./orders.mjs";
 import * as sendcloud from "./sendcloud.mjs";
+import * as ctt from "./ctt.mjs";
 import { sendEmail } from "./mailer.mjs";
 import {
   orderConfirmationEmail, orderShippedEmail, orderPickupEmail, orderDeliveredEmail, adminNewOrderEmail
@@ -10,10 +11,53 @@ import {
 
 export const siteUrlFrom = (req) => Netlify.env.get("URL") || new URL(req.url).origin;
 
+export function bytesToBase64(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Envio Sendcloud (idempotente)
 // ---------------------------------------------------------------------------------------------
-export const hasShipment = (o) => Boolean(o.sendcloudParcelId || o.sendcloudShipmentId);
+export const hasShipment = (o) => Boolean(o.sendcloudParcelId || o.sendcloudShipmentId || o.cttObject);
+export const usesCtt = (o) => Boolean(o.cttProduct);
+
+// Envio direto na CTT: cria a guia, guarda o PDF em Blobs e o nº de objeto na encomenda.
+async function ensureCttShipment(token, order) {
+  if (!ctt.isConfigured()) {
+    const updated = await updateOrder(token, (o) => {
+      if (hasShipment(o)) return false;
+      o.shippingStatus = "not_configured";
+      o.shippingError = ctt.NOT_CONFIGURED;
+    });
+    return { order: updated, skipped: "ctt não configurado" };
+  }
+  const catalog = await loadCatalog();
+  try {
+    const shipment = await ctt.createShipment(order, catalog.sender);
+    if (shipment.labelPdfBase64) await ctt.saveLabel(token, shipment.labelPdfBase64);
+    const updated = await updateOrder(token, (o) => {
+      if (hasShipment(o)) return false; // outro processo gravou entretanto
+      o.cttObject = shipment.trackingNumber;
+      o.trackingNumber = shipment.trackingNumber;
+      o.trackingUrl = ctt.trackingUrl(shipment.trackingNumber);
+      o.labelStored = Boolean(shipment.labelPdfBase64);
+      o.shippingStatus = "label_ready";
+      o.shipmentCreatedAt = new Date().toISOString();
+      delete o.shippingError;
+    });
+    return { order: updated, created: true };
+  } catch (err) {
+    console.error(`CTT (${order.number}):`, err.message);
+    const updated = await updateOrder(token, (o) => {
+      if (hasShipment(o)) return false;
+      o.shippingStatus = "shipping_error";
+      o.shippingError = err.message;
+    });
+    return { order: updated, error: err.message };
+  }
+}
 
 /**
  * Cria o envio se ainda não existir. Nunca cria um segundo envio:
@@ -27,6 +71,7 @@ export async function ensureShipment(token) {
   if (!order) throw new Error("Encomenda não encontrada");
   if (hasShipment(order)) return { order, skipped: "já existe envio" };
   if (order.status === "cancelled") return { order, skipped: "encomenda cancelada" };
+  if (usesCtt(order)) return ensureCttShipment(token, order);
 
   if (!sendcloud.isConfigured()) {
     const updated = await updateOrder(token, (o) => {
@@ -100,6 +145,11 @@ export async function sendOrderEmail(token, type, siteUrl, { force = false } = {
 
   const contact = Netlify.env.get("EMAIL_REPLY_TO");
   const email = def.build({ ...order, trackUrl: order.trackUrl || `${siteUrl}/encomenda.html?t=${order.token}` }, siteUrl, contact);
+  // Email da loja: leva a guia CTT em anexo para imprimir logo (como na Vinted)
+  if (type === "admin" && order.labelStored) {
+    const pdf = await ctt.getLabel(order.token).catch(() => null);
+    if (pdf) email.attachments = [{ filename: `etiqueta-${order.number}.pdf`, content: bytesToBase64(pdf) }];
+  }
   try {
     const sent = await sendEmail({ to, ...email });
     if (sent.skipped) {
@@ -158,6 +208,10 @@ export async function applyTrackingUpdate(token, { status, message, trackingNumb
 export async function refreshTracking(token, siteUrl) {
   const order = await getOrder(token);
   if (!order) throw new Error("Encomenda não encontrada");
+  if (usesCtt(order)) {
+    if (!order.cttObject) return { order, skipped: "sem envio" };
+    return (await refreshCttTracking([order], siteUrl))[0];
+  }
   if (!order.trackingNumber && !order.sendcloudShipmentId) return { order, skipped: "sem envio" };
   let update;
   if (order.trackingNumber) {
@@ -170,4 +224,25 @@ export async function refreshTracking(token, siteUrl) {
   const result = await applyTrackingUpdate(token, update);
   if (result.changed) await notifyForStatus(token, siteUrl);
   return result;
+}
+
+// Tracking CTT: uma consulta aos eventos para várias encomendas (até 50 de cada vez).
+export async function refreshCttTracking(orders, siteUrl) {
+  const results = [];
+  for (let i = 0; i < orders.length; i += 50) {
+    const chunk = orders.slice(i, i + 50);
+    const events = await ctt.getEvents(chunk.map((o) => o.cttObject));
+    for (const o of chunk) {
+      const update = ctt.trackingUpdateFrom(events[o.cttObject]);
+      if (!update || (update.code === o.cttLastEvent && update.message === o.sendcloudStatus)) {
+        results.push({ order: o, changed: false });
+        continue;
+      }
+      const result = await applyTrackingUpdate(o.token, update);
+      await updateOrder(o.token, (x) => { x.cttLastEvent = update.code; });
+      if (result.changed) await notifyForStatus(o.token, siteUrl);
+      results.push(result);
+    }
+  }
+  return results;
 }

@@ -2,6 +2,7 @@
 import { loadCatalog, saveCatalog, sanitizeCatalog, imageStore } from "../lib/catalog.mjs";
 import { listOrders, getOrder, updateOrder, applyStatus, STATUSES } from "../lib/orders.mjs";
 import * as sendcloud from "../lib/sendcloud.mjs";
+import * as ctt from "../lib/ctt.mjs";
 import {
   ensureShipment, hasShipment, sendOrderEmail, notifyForStatus, refreshTracking, EMAIL_TYPES, siteUrlFrom
 } from "../lib/fulfillment.mjs";
@@ -67,7 +68,7 @@ export default async (req) => {
     return json({ error: "Password errada" }, 401);
   }
 
-  if (path === "/api/admin/login") return json({ ok: true, sendcloud: sendcloud.isConfigured(), sendcloudMock: sendcloud.isMock() });
+  if (path === "/api/admin/login") return json({ ok: true, sendcloud: sendcloud.isConfigured(), sendcloudMock: sendcloud.isMock(), ctt: ctt.isConfigured() });
 
   if (path === "/api/admin/catalog") {
     if (req.method === "GET") return json(await loadCatalog());
@@ -113,9 +114,10 @@ export default async (req) => {
   if (path === "/api/admin/label" && req.method === "GET") {
     const order = await getOrder(new URL(req.url).searchParams.get("token"));
     if (!order) return json({ error: "Encomenda não encontrada" }, 404);
-    if (!order.sendcloudParcelId) return json({ error: "Esta encomenda ainda não tem envio criado na Sendcloud" }, 400);
+    if (!order.sendcloudParcelId && !order.cttObject) return json({ error: "Esta encomenda ainda não tem envio criado" }, 400);
     try {
-      const pdf = await sendcloud.getLabel(order.sendcloudParcelId);
+      const pdf = order.cttObject ? await ctt.getLabel(order.token) : await sendcloud.getLabel(order.sendcloudParcelId);
+      if (!pdf) return json({ error: "Guia CTT não encontrada" }, 404);
       await updateOrder(order.token, (o) => { o.labelPrintedAt = new Date().toISOString(); });
       return new Response(pdf, {
         headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="etiqueta-${order.number}.pdf"`, "Cache-Control": "no-store" }
@@ -135,14 +137,26 @@ export default async (req) => {
     const orders = await Promise.all(tokens.map(getOrder));
     const failed = [];
     const ready = [];
+    const cttReady = [];
     orders.forEach((o, i) => {
       if (!o) failed.push({ token: tokens[i], number: "?", reason: "Encomenda não encontrada" });
+      else if (o.cttObject) cttReady.push(o);
       else if (!o.sendcloudParcelId) failed.push({ token: o.token, number: o.number, reason: "Envio ainda não criado" });
       else ready.push(o);
     });
 
     const pdfs = [];
     const ok = [];
+    // Guias CTT: já estão guardadas, um PDF por encomenda
+    for (const o of cttReady) {
+      const pdf = await ctt.getLabel(o.token);
+      if (pdf) { pdfs.push(toBase64(pdf)); ok.push(o.number); }
+      else failed.push({ token: o.token, number: o.number, reason: "Guia CTT não encontrada" });
+    }
+    if (cttReady.length) {
+      const printedAt = new Date().toISOString();
+      await Promise.all(cttReady.filter((o) => ok.includes(o.number)).map((o) => updateOrder(o.token, (x) => { x.labelPrintedAt = printedAt; })));
+    }
     if (ready.length) {
       try {
         pdfs.push(toBase64(await sendcloud.getLabels(ready.map((o) => o.sendcloudParcelId))));
@@ -162,9 +176,9 @@ export default async (req) => {
     return json({ pdfs, ok, failed });
   }
 
-  // Atualizar tracking (consulta à Sendcloud) — várias encomendas, 5 de cada vez
+  // Atualizar tracking (consulta à Sendcloud ou à CTT) — várias encomendas, 5 de cada vez
   if (path === "/api/admin/tracking-refresh" && req.method === "POST") {
-    if (!sendcloud.isConfigured()) return json({ error: sendcloud.NOT_CONFIGURED }, 400);
+    if (!sendcloud.isConfigured() && !ctt.isConfigured()) return json({ error: sendcloud.NOT_CONFIGURED }, 400);
     const body = await readJson(req);
     const tokens = Array.isArray(body && body.tokens) ? [...new Set(body.tokens)].slice(0, 100) : [];
     const siteUrl = siteUrlFrom(req);
@@ -194,10 +208,11 @@ export default async (req) => {
 
     // Recriar envio — só se realmente não existir nenhum
     if (body.action === "retry-shipment") {
-      if (hasShipment(order)) return json({ error: "Esta encomenda já tem envio na Sendcloud — não foi criado outro." }, 409);
+      if (hasShipment(order)) return json({ error: `Esta encomenda já tem envio ${order.cttObject ? "CTT" : "na Sendcloud"} — não foi criado outro.` }, 409);
       const r = await ensureShipment(order.token);
       if (r.error) return json({ error: "Envio não criado: " + r.error, order: r.order }, 502);
       if (r.skipped) return json({ error: "Envio não criado: " + r.skipped, order: r.order }, 400);
+      if (r.order && r.order.cttObject) return done(`Guia CTT criada (${r.order.cttObject})`);
       return done(r.reused ? "A Sendcloud já tinha este envio — foi associado à encomenda (sem duplicar)." : "Envio criado na Sendcloud");
     }
 

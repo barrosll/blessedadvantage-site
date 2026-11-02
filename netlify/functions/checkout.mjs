@@ -2,6 +2,7 @@
 // Os preços vêm SEMPRE do catálogo no servidor, nunca do browser.
 import { loadCatalog, publicCatalog, findMethod, shippingPrice, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
 import { getServicePoint, isConfigured, NOT_CONFIGURED } from "../lib/sendcloud.mjs";
+import * as ctt from "../lib/ctt.mjs";
 
 export const config = { path: "/api/checkout" };
 
@@ -101,9 +102,20 @@ export default async (req) => {
   if (!method) return json({ error: "Escolhe um método de entrega" }, 400);
 
   let point = null;
-  if (method.requiresServicePoint) {
-    const pointId = String(delivery.servicePointId || "").slice(0, 60);
-    if (!pointId) return json({ error: "Escolhe primeiro um ponto de recolha." }, 400);
+  const pointId = String(delivery.servicePointId || "").slice(0, 60);
+  if (method.requiresServicePoint && !pointId) return json({ error: "Escolhe primeiro um ponto de recolha." }, 400);
+  if (method.requiresServicePoint && method.cttProduct) {
+    // Pontos CTT: confirmados na lista da CTT (o browser não decide nome nem morada)
+    if (!ctt.isConfigured()) return json({ error: ctt.NOT_CONFIGURED }, 503);
+    try {
+      point = await ctt.getPoint(pointId);
+    } catch (err) {
+      console.error("Ponto CTT:", err.message);
+      return json({ error: "Não foi possível confirmar o ponto de recolha. Tenta novamente." }, 502);
+    }
+    if (!point) return json({ error: "Ponto de recolha não encontrado. Escolhe outro." }, 400);
+    point = { ...point, carrier: "ctt" };
+  } else if (method.requiresServicePoint) {
     if (!isConfigured()) return json({ error: NOT_CONFIGURED }, 503);
     // Confirma o ponto na Sendcloud (o browser não decide nome, morada nem transportadora)
     try {
@@ -160,7 +172,8 @@ export default async (req) => {
             sp_address: point.street.slice(0, 200),
             sp_postal_code: point.postalCode,
             sp_city: point.city.slice(0, 100),
-            sp_carrier: point.carrier
+            sp_carrier: point.carrier,
+            sp_type: point.type || ""
           }
         : {}),
       ...notes

@@ -56,7 +56,7 @@ export async function saveCatalog(catalog) {
 export function publicCatalog(catalog) {
   return {
     shipping: { productionDays: (catalog.shipping && catalog.shipping.productionDays) || [3, 5] },
-    // Só o necessário para o cliente escolher (sem códigos internos da Sendcloud)
+    // Só o necessário para o cliente escolher (sem códigos internos da Sendcloud/CTT)
     shippingMethods: normalizeMethods(catalog)
       .filter((m) => m.enabled && m.price != null)
       .map(({ id, name, carrier, price, freeFrom, days, requiresServicePoint }) => ({ id, name, carrier, price, freeFrom, days, requiresServicePoint })),
@@ -185,6 +185,7 @@ export function sanitizeCatalog(input) {
       name: text(m.name, 60),
       carrier: text(m.carrier, 40).toLowerCase(),
       sendcloudCode: text(m.sendcloudCode, 120),
+      cttProduct: ["EMSF057.01", "EMSF056.01"].includes(m.cttProduct) ? m.cttProduct : "",
       price: m.price === "" || m.price == null ? null : cents(m.price),
       freeFrom: m.freeFrom ? cents(m.freeFrom) : 0,
       days: dayRange(m.days, [2, 4], 1),
@@ -197,13 +198,14 @@ export function sanitizeCatalog(input) {
     if (method.price != null && !(method.price >= 0 && method.price <= 10000)) throw new Error(`${label}: preço inválido`);
     if (method.enabled && method.price == null) throw new Error(`${label}: define o preço antes de ativar`);
     if (method.enabled && method.requiresServicePoint && !method.carrier) throw new Error(`${label}: indica a transportadora (para procurar pontos de recolha)`);
+    if (method.cttProduct) method.carrier = "ctt";
     if (!(method.freeFrom >= 0)) throw new Error(`${label}: valor de envio grátis inválido`);
     methodIds.add(method.id);
     return method;
   });
   if (!shippingMethods.some((m) => m.enabled)) throw new Error("Tem de existir pelo menos um método de envio ativo");
 
-  // Morada do remetente (usada nas etiquetas da Sendcloud)
+  // Morada do remetente (usada nas etiquetas CTT/Sendcloud)
   const sIn = input.sender || {};
   const sender = {
     name: text(sIn.name, 80), street: text(sIn.street, 120), postalCode: text(sIn.postalCode, 12),

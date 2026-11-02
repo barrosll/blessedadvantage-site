@@ -88,7 +88,7 @@ async function buildOrder(session) {
   const method = findMethod(catalog, meta.shipping_method || "") ||
     (catalog.shippingMethods || []).find((m) => m.id === meta.shipping_method) || null;
   const servicePoint = meta.sp_id
-    ? { id: meta.sp_id, name: meta.sp_name || "", street: meta.sp_address || "", postalCode: meta.sp_postal_code || "", city: meta.sp_city || "", carrier: meta.sp_carrier || "" }
+    ? { id: meta.sp_id, name: meta.sp_name || "", street: meta.sp_address || "", postalCode: meta.sp_postal_code || "", city: meta.sp_city || "", carrier: meta.sp_carrier || "", type: meta.sp_type || "" }
     : null;
   const shippingDays = (method && method.days) || catalog.shipping.days || [2, 4];
   const productionDays = catalog.shipping.productionDays || [3, 5];
@@ -114,6 +114,7 @@ async function buildOrder(session) {
     shippingMethodName: method ? method.name : "CTT",
     shippingCarrier: method ? method.carrier : "ctt",
     shippingOptionCode: method ? method.sendcloudCode : "",
+    cttProduct: method ? method.cttProduct || "" : "",
     servicePoint,
     parcelWeight: meta.weight_kg || "0.5",
     shippingStatus: "pending",
