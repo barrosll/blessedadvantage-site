@@ -5,6 +5,13 @@
 [functions]
   node_bundler = "esbuild"
 
+# Fotos e logótipos: o browser guarda-os 7 dias (menos pedidos e tráfego = menos créditos Netlify).
+# Ao trocar uma foto, usa um nome de ficheiro novo para aparecer logo a todos.
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
 [[headers]]
   for = "/admin*"
   [headers.values]
