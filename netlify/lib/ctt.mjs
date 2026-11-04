@@ -65,17 +65,28 @@ async function soap(service, action, body, { timeoutMs = 7000 } = {}) {
   const xmlns = Object.entries(NS).map(([p, u]) => `xmlns:${p}="${u}"`).join(" ");
   const envelope = `<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" ${xmlns}><soapenv:Body>${body}</soapenv:Body></soapenv:Envelope>`;
   let res, text;
+  const ac = new AbortController();
+  let timer;
   try {
-    res = await fetch(`${c.base}/${service}.svc`, {
-      method: "POST",
-      headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: `"${action}"` },
-      body: envelope,
-      signal: AbortSignal.timeout(timeoutMs)
+    // O abort sozinho não interrompe uma resposta já a meio (visto na Netlify): a corrida com o temporizador garante o limite.
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(() => { ac.abort(); reject(Object.assign(new Error("timeout"), { name: "TimeoutError" })); }, timeoutMs);
     });
-    text = await res.text();
+    const request = (async () => {
+      res = await fetch(`${c.base}/${service}.svc`, {
+        method: "POST",
+        headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: `"${action}"` },
+        body: envelope,
+        signal: ac.signal
+      });
+      text = await res.text();
+    })();
+    await Promise.race([request, expired]);
   } catch (err) {
     const msg = err.name === "TimeoutError" ? `sem resposta em ${timeoutMs / 1000} s` : err.message;
     throw new CttError("CTT indisponível: " + msg + ". Tenta novamente.", 503);
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) {
     const fault = tag(text, "faultstring") || text.slice(0, 300);
@@ -210,14 +221,15 @@ export async function getLabel(token) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Pontos de entrega (lojas CTT, postos CTT e cacifos). A lista completa tem ~4 MB: é descarregada
-// no máximo uma vez por dia (função agendada às 8h + recarga se tiver mais de 26 h) e guardada
-// compacta em Blobs. O tipo vem do 1.º dígito do PuP ID (indicação da CTT):
+// Pontos de entrega (lojas CTT, postos CTT e cacifos). A lista completa tem ~4,5 MB e, a partir da
+// Netlify (EUA), o sandbox da CTT envia-a a ~90 KB/s (~50 s): mais do que os 30 s de uma function normal.
+// Por isso é descarregada uma vez por dia numa background function (ctt-points-background, lançada às 8h
+// por ctt-points) e guardada compacta em Blobs; o checkout usa sempre a lista guardada, sem esperar pela CTT.
+// O tipo vem do 1.º dígito do PuP ID (indicação da CTT):
 //   8 = Loja CTT, 9 = Posto CTT, 4 = Cacifo CTT 24H (2 = Phone House, inativos; 3 = Payshop, não usados)
 // ---------------------------------------------------------------------------------------------
 const POINT_KINDS = { 8: { kind: "Loja CTT", type: "PostOffice" }, 9: { kind: "Posto CTT", type: "PostOffice" }, 4: { kind: "Cacifo CTT 24H", type: "ParcelLocker" } };
 const POINTS_KEY = "points";
-const POINTS_MAX_AGE = 26 * 3600 * 1000;
 const pointsStore = async () => (await import("@netlify/blobs")).getStore({ name: "ctt", consistency: "strong" });
 
 export function parsePoints(xml) {
@@ -239,7 +251,7 @@ export async function refreshPoints() {
   const c = config();
   if (!c) throw new CttError(NOT_CONFIGURED, 503);
   const xml = await soap("Referenciasws", "http://tempuri.org/IReferenciasWS/ObterTodosPontosEntrega",
-    `<tempuri:ObterTodosPontosEntrega><tempuri:ID>${esc(c.authId)}</tempuri:ID></tempuri:ObterTodosPontosEntrega>`, { timeoutMs: 25000 });
+    `<tempuri:ObterTodosPontosEntrega><tempuri:ID>${esc(c.authId)}</tempuri:ID></tempuri:ObterTodosPontosEntrega>`, { timeoutMs: 600000 });
   const points = parsePoints(xml);
   if (points.length < 50) throw new CttError(`Lista de pontos CTT incompleta (${points.length})`, 502);
   await (await pointsStore()).setJSON(POINTS_KEY, { updatedAt: new Date().toISOString(), points });
@@ -248,13 +260,16 @@ export async function refreshPoints() {
 
 async function allPoints() {
   const cached = await (await pointsStore()).get(POINTS_KEY, { type: "json" });
-  if (cached && Date.now() - Date.parse(cached.updatedAt) < POINTS_MAX_AGE) return cached.points;
-  try {
-    return await refreshPoints();
-  } catch (err) {
-    if (cached) return cached.points; // CTT em baixo: usa a lista antiga
-    throw err;
-  }
+  if (!cached || !cached.points || !cached.points.length) throw new CttError("A lista de pontos CTT ainda não foi carregada.", 503);
+  return cached.points;
+}
+
+// Chave para lançar a background function (evita que qualquer pessoa a dispare): derivada do AuthenticationID.
+export async function refreshKey() {
+  const c = config();
+  if (!c) return "";
+  const data = new TextEncoder().encode(`ctt-points:${c.authId}`);
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
