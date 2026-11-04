@@ -69,7 +69,7 @@
     loadOrders();
     api("/api/admin/login", { method: "POST" }).then(function (info) {
       var n = $("sendcloudNotice");
-      n.hidden = info.sendcloud && !info.sendcloudMock;
+      n.hidden = info.ctt || (info.sendcloud && !info.sendcloudMock);
       n.textContent = info.sendcloudMock
         ? "Modo de simulação da Sendcloud (só local): envios, etiquetas e pontos de recolha são de teste."
         : "Sendcloud ainda não configurado: as encomendas ficam registadas, mas os envios e as etiquetas só são criados depois de definir SENDCLOUD_PUBLIC_KEY e SENDCLOUD_SECRET_KEY na Netlify.";
@@ -173,7 +173,7 @@
         '<h4 style="margin-top:18px">Entrega</h4><p class="small" style="margin:0;line-height:1.7">' +
         "<strong>" + esc(o.shippingMethodName || "—") + "</strong>" + (o.parcelWeight ? " · " + esc(o.parcelWeight) + " kg" : "") + "<br>" +
         (sp ? "Ponto: " + esc(sp.name) + " — " + esc(sp.street) + ", " + esc(sp.postalCode) + " " + esc(sp.city) + "<br>" : "") +
-        (o.sendcloudStatus ? "Sendcloud: " + esc(o.sendcloudStatus) + "<br>" : "") +
+        (o.sendcloudStatus ? (o.cttProduct ? "CTT: " : "Sendcloud: ") + esc(o.sendcloudStatus) + "<br>" : "") +
         (o.labelPrintedAt ? "Etiqueta impressa " + dateFmt.format(new Date(o.labelPrintedAt)) + "<br>" : "") +
         (canLabel ? "Primeiro scan da transportadora: " + (o.shippedAt ? "✓ confirmado " + dateFmt.format(new Date(o.shippedAt)) : "⏳ ainda não") + "<br>" : "") + "</p>" +
         '<h4 style="margin-top:18px">Cliente</h4><p class="small" style="margin:0;line-height:1.7">' +
@@ -184,8 +184,8 @@
         '<label class="field"><span>Estado</span><select class="field-select" data-f="status">' +
           Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (k === o.status ? " selected" : "") + ">" + STATUS[k] + "</option>"; }).join("") +
         "</select></label>" +
-        '<label class="field"><span>Código de seguimento</span><input type="text" data-f="tracking" value="' + esc(o.trackingNumber || "") + '" placeholder="preenchido pela Sendcloud" autocomplete="off"></label>' +
-        '<p class="hint" style="margin:0">“Enviada” / “Entregue” enviam o email correspondente ao cliente (uma só vez). “Cancelada” tenta cancelar o envio na Sendcloud — o reembolso faz-se na Stripe.</p>' +
+        '<label class="field"><span>Código de seguimento</span><input type="text" data-f="tracking" value="' + esc(o.trackingNumber || "") + '" placeholder="preenchido automaticamente" autocomplete="off"></label>' +
+        '<p class="hint" style="margin:0">“Enviada” / “Entregue” enviam o email correspondente ao cliente (uma só vez). “Cancelada” não anula a guia — o reembolso faz-se na Stripe.</p>' +
         '<button class="btn btn-sm" data-act="save">Guardar estado</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="label"' + (canLabel ? "" : " disabled") + ">Imprimir etiqueta</button>" +
         (o.trackingUrl ? '<a class="btn btn-ghost btn-sm" href="' + esc(o.trackingUrl) + '" target="_blank" rel="noopener" style="text-decoration:none">Abrir tracking ↗</a>' : "") +

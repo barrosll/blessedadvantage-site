@@ -4,7 +4,7 @@
 import { loadCatalog, findMethod } from "../lib/catalog.mjs";
 import { createOrder, claimSession, updateOrder } from "../lib/orders.mjs";
 import { computeEta } from "../lib/emails.mjs";
-import { ensureShipment, sendOrderEmail, siteUrlFrom } from "../lib/fulfillment.mjs";
+import { fulfillOrder, fulfillKey, siteUrlFrom } from "../lib/fulfillment.mjs";
 
 export const config = { path: "/api/stripe-webhook" };
 
@@ -147,9 +147,19 @@ async function handlePaid(sessionId, siteUrl) {
 
   // Passos seguintes: cada um é idempotente, por isso um aviso repetido só completa o que falta.
   // Falhas (Sendcloud/Resend) ficam registadas na encomenda e não afetam o pagamento.
-  await ensureShipment(token);
-  await sendOrderEmail(token, "confirmation", siteUrl);
-  await sendOrderEmail(token, "admin", siteUrl);
+  // A guia CTT pode demorar mais do que o limite desta função: corre numa background function (até 15 min).
+  try {
+    const res = await fetch(`${siteUrl}/.netlify/functions/fulfill-background`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-fulfill-key": await fulfillKey(token) },
+      body: JSON.stringify({ token, siteUrl })
+    });
+    if (res.status === 202) return;
+    console.error("fulfill-background respondeu", res.status, "— a tratar aqui");
+  } catch (err) {
+    console.error("fulfill-background indisponível:", err.message, "— a tratar aqui");
+  }
+  await fulfillOrder(token, siteUrl);
 }
 
 export default async (req) => {

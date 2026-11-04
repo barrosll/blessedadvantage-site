@@ -194,7 +194,8 @@ export async function createShipment(order, sender, { requestId = crypto.randomU
     el("ws", "UserID", c.userId)
   ]));
 
-  const xml = await soap("CTTShipmentProviderWS", "http://tempuri.org/ICTTShipmentProviderWS/CreateShipment", body);
+  // A resposta traz o PDF da guia e a CTT envia-o devagar para a Netlify (EUA): margem de 25 s.
+  const xml = await soap("CTTShipmentProviderWS", "http://tempuri.org/ICTTShipmentProviderWS/CreateShipment", body, { timeoutMs: 25000 });
   const status = tag(xml, "Status");
   if (status !== "Success") {
     const errs = errorsOf(xml);

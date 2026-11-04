@@ -178,6 +178,19 @@ export async function notifyForStatus(token, siteUrl) {
   if (order.status === "delivered") await sendOrderEmail(token, "delivered", siteUrl);
 }
 
+// Depois do pagamento: guia + emails (idempotente). Chamado pela background function fulfill-background.
+export async function fulfillOrder(token, siteUrl) {
+  await ensureShipment(token);
+  await sendOrderEmail(token, "confirmation", siteUrl);
+  await sendOrderEmail(token, "admin", siteUrl);
+}
+
+// Chave que só o webhook da Stripe sabe gerar (impede chamadas externas à background function)
+export async function fulfillKey(token) {
+  const data = new TextEncoder().encode(`fulfill:${Netlify.env.get("STRIPE_WEBHOOK_SECRET") || ""}:${token}`);
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ---------------------------------------------------------------------------------------------
 // Tracking
 // ---------------------------------------------------------------------------------------------
