@@ -8,6 +8,9 @@ const MONO = "font-family:'JetBrains Mono',Consolas,Menlo,monospace;";
 const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const euro = (cents) => new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(cents / 100);
 
+// "1 dia útil" / "2 dias úteis" / "2–4 dias úteis"
+const daysText = ([a, b]) => (a === b ? `${a} ${a === 1 ? "dia útil" : "dias úteis"}` : `${a}–${b} dias úteis`);
+
 // Soma dias úteis (sem sábados e domingos)
 export function addBusinessDays(date, days) {
   const d = new Date(date);
@@ -129,7 +132,7 @@ export function orderConfirmationEmail(order, siteUrl, contact) {
     ${para("Recebemos o teu pagamento e a tua encomenda já está na fila da impressora. Cada peça é impressa por encomenda, camada a camada — vamos avisando-te a cada passo.")}
     ${progress(order)}
     ${box(`<strong>Entrega prevista: ${fmtDate(eta[0])} – ${fmtDate(eta[1])}</strong><br>
-      <span style="color:${C.muted};">Produção: ${order.productionDays[0]}–${order.productionDays[1]} dias úteis · Transporte: ${order.shippingDays[0]}–${order.shippingDays[1]} dias úteis</span>`)}
+      <span style="color:${C.muted};">Produção: ${daysText(order.productionDays)} · Transporte: ${daysText(order.shippingDays)}</span>`)}
     ${button(order.trackUrl, "Acompanhar encomenda")}
     <div style="height:18px;"></div>
     ${label("Resumo")}

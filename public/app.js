@@ -223,7 +223,7 @@
     $("deliveryMethods").innerHTML = list.map(function (x) {
       var cost = shipCost(x);
       return '<label class="method"><input type="radio" name="delivery" value="' + esc(x.id) + '"' + (m && x.id === m.id ? " checked" : "") + ">" +
-        '<span class="m-name">' + esc(x.name) + '<span class="muted small">' + x.days[0] + "–" + x.days[1] + " dias úteis após envio</span></span>" +
+        '<span class="m-name">' + esc(x.name) + '<span class="muted small">' + (x.days[0] === x.days[1] ? x.days[0] + (x.days[0] === 1 ? " dia útil" : " dias úteis") : x.days[0] + "–" + x.days[1] + " dias úteis") + " após envio</span></span>" +
         '<span class="m-price">' + (cost === 0 ? "Grátis" : money(cost)) + "</span></label>";
     }).join("");
 
