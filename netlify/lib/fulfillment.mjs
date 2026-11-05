@@ -72,6 +72,15 @@ export async function ensureShipment(token) {
   if (hasShipment(order)) return { order, skipped: "já existe envio" };
   if (order.status === "cancelled") return { order, skipped: "encomenda cancelada" };
   if (usesCtt(order)) return ensureCttShipment(token, order);
+  // Envio manual (ex.: França/Espanha): a guia é feita à mão e o tracking colado na gestão
+  if (order.shippingManual) {
+    const updated = await updateOrder(token, (o) => {
+      if (hasShipment(o) || o.shippingStatus === "manual") return false;
+      o.shippingStatus = "manual";
+      delete o.shippingError;
+    });
+    return { order: updated, skipped: "envio manual" };
+  }
 
   if (!sendcloud.isConfigured()) {
     const updated = await updateOrder(token, (o) => {

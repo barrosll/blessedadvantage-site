@@ -1,6 +1,6 @@
 // Cria uma sessão de pagamento na Stripe (MB WAY, Multibanco, cartão...).
 // Os preços vêm SEMPRE do catálogo no servidor, nunca do browser.
-import { loadCatalog, publicCatalog, findMethod, shippingPrice, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
+import { loadCatalog, publicCatalog, findMethod, shippingPrice, methodCountries, EU_COUNTRIES, CUSTOM_COLOR, MAX_NOTE } from "../lib/catalog.mjs";
 import { getServicePoint, isConfigured, NOT_CONFIGURED } from "../lib/sendcloud.mjs";
 import * as ctt from "../lib/ctt.mjs";
 
@@ -100,6 +100,10 @@ export default async (req) => {
   const delivery = body.delivery || {};
   const method = findMethod(fullCatalog, String(delivery.methodId || ""));
   if (!method) return json({ error: "Escolhe um método de entrega" }, 400);
+  // País de entrega: escolhido no carrinho; a Stripe só aceita moradas desse país
+  const country = String(delivery.country || "PT").toUpperCase();
+  if (!EU_COUNTRIES[country]) return json({ error: "País de entrega inválido" }, 400);
+  if (!methodCountries(method).includes(country)) return json({ error: "Este método de entrega não está disponível para o país escolhido." }, 400);
 
   let point = null;
   const pointId = String(delivery.servicePointId || "").slice(0, 60);
@@ -151,9 +155,9 @@ export default async (req) => {
 
   const params = toForm({
     mode: "payment",
-    locale: "pt",
+    locale: country === "PT" ? "pt" : "auto", // fora de Portugal: língua do browser do cliente
     line_items: lineItems,
-    shipping_address_collection: { allowed_countries: ["PT"] },
+    shipping_address_collection: { allowed_countries: [country] },
     shipping_options: shippingOptions,
     phone_number_collection: { enabled: true }, // necessário para as etiquetas CTT/InPost
     tax_id_collection: { enabled: true }, // NIF para a fatura
@@ -165,6 +169,7 @@ export default async (req) => {
       items: summary.join(", ").slice(0, 500),
       weight_kg: weight.toFixed(3),
       shipping_method: method.id,
+      ship_country: country,
       ...(point
         ? {
             sp_id: point.id,

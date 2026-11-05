@@ -27,6 +27,20 @@ export async function loadCatalog() {
 
 // Métodos de envio. Catálogos antigos só tinham "shipping" (um preço único CTT):
 // nesse caso cria-se o método "CTT · entrega em casa" com os mesmos valores.
+// Países da União Europeia para onde a loja pode vender (código ISO → nome)
+export const EU_COUNTRIES = {
+  PT: "Portugal", ES: "Espanha", FR: "França", DE: "Alemanha", IT: "Itália", BE: "Bélgica", NL: "Países Baixos",
+  LU: "Luxemburgo", IE: "Irlanda", AT: "Áustria", DK: "Dinamarca", SE: "Suécia", FI: "Finlândia", PL: "Polónia",
+  CZ: "Chéquia", SK: "Eslováquia", SI: "Eslovénia", HR: "Croácia", HU: "Hungria", RO: "Roménia", BG: "Bulgária",
+  GR: "Grécia", CY: "Chipre", MT: "Malta", EE: "Estónia", LV: "Letónia", LT: "Lituânia"
+};
+
+// Países de um método (catálogos antigos não tinham o campo: só Portugal)
+export function methodCountries(m) {
+  const list = Array.isArray(m.countries) ? m.countries.filter((c) => EU_COUNTRIES[c]) : [];
+  return list.length ? list : ["PT"];
+}
+
 function normalizeMethods(catalog) {
   if (Array.isArray(catalog.shippingMethods) && catalog.shippingMethods.length) return catalog.shippingMethods;
   const s = catalog.shipping || {};
@@ -59,7 +73,8 @@ export function publicCatalog(catalog) {
     // Só o necessário para o cliente escolher (sem códigos internos da Sendcloud/CTT)
     shippingMethods: normalizeMethods(catalog)
       .filter((m) => m.enabled && m.price != null)
-      .map(({ id, name, carrier, price, freeFrom, days, requiresServicePoint }) => ({ id, name, carrier, price, freeFrom, days, requiresServicePoint })),
+      .map((m) => ({ id: m.id, name: m.name, carrier: m.carrier, price: m.price, freeFrom: m.freeFrom, days: m.days, requiresServicePoint: m.requiresServicePoint, countries: methodCountries(m) })),
+    countryNames: EU_COUNTRIES,
     categories: catalog.categories || seed.categories,
     site: catalog.site || {},
     products: catalog.products.filter((p) => p.visible).map(normalizeProduct)
@@ -190,6 +205,10 @@ export function sanitizeCatalog(input) {
       freeFrom: m.freeFrom ? cents(m.freeFrom) : 0,
       days: dayRange(m.days, [2, 4], 1),
       requiresServicePoint: Boolean(m.requiresServicePoint),
+      // Envio manual: sem guia automática — a guia é feita à mão (Packlink, InPost…) e o tracking colado na gestão
+      manual: Boolean(m.manual),
+      countries: [...new Set((Array.isArray(m.countries) ? m.countries : String(m.countries || "").split(/[\s,;]+/))
+        .map((c) => String(c).trim().toUpperCase()).filter(Boolean))],
       enabled: Boolean(m.enabled)
     };
     const label = method.name || `Método ${i + 1}`;
@@ -199,6 +218,13 @@ export function sanitizeCatalog(input) {
     if (method.enabled && method.price == null) throw new Error(`${label}: define o preço antes de ativar`);
     if (method.enabled && method.requiresServicePoint && !method.carrier) throw new Error(`${label}: indica a transportadora (para procurar pontos de recolha)`);
     if (method.cttProduct) method.carrier = "ctt";
+    const badCountry = method.countries.find((c) => !EU_COUNTRIES[c]);
+    if (badCountry) throw new Error(`${label}: país "${badCountry}" inválido (usa códigos da UE, ex.: PT, ES, FR)`);
+    if (!method.countries.length) method.countries = ["PT"];
+    if (method.cttProduct && method.countries.some((c) => c !== "PT")) throw new Error(`${label}: os serviços CTT configurados só servem Portugal`);
+    if (method.manual) { method.cttProduct = ""; method.sendcloudCode = ""; }
+    if (method.manual && method.requiresServicePoint) throw new Error(`${label}: um envio manual não pode pedir ponto de recolha (o site não tem a lista de pontos dessa transportadora)`);
+    if (method.enabled && method.requiresServicePoint && !method.cttProduct && method.countries.some((c) => c !== "PT")) throw new Error(`${label}: pontos de recolha só estão disponíveis em Portugal`);
     if (!(method.freeFrom >= 0)) throw new Error(`${label}: valor de envio grátis inválido`);
     methodIds.add(method.id);
     return method;

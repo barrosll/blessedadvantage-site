@@ -207,9 +207,26 @@
   function saveDelivery() {
     try { localStorage.setItem(DELIVERY_KEY, JSON.stringify(delivery)); } catch (e) {}
   }
-  function methods() { return catalog.shippingMethods || []; }
+  function allMethods() { return catalog.shippingMethods || []; }
+  // Países servidos por pelo menos um método (Portugal primeiro)
+  function countries() {
+    var set = {};
+    allMethods().forEach(function (m) { (m.countries || ["PT"]).forEach(function (c) { set[c] = true; }); });
+    return Object.keys(set).sort(function (a, b) {
+      return a === "PT" ? -1 : b === "PT" ? 1 : countryName(a).localeCompare(countryName(b), "pt");
+    });
+  }
+  function countryName(c) { return (catalog.countryNames && catalog.countryNames[c]) || c; }
+  function country() {
+    var list = countries();
+    return list.indexOf(delivery.country) >= 0 ? delivery.country : list.indexOf("PT") >= 0 ? "PT" : list[0] || "PT";
+  }
+  function methods() {
+    var c = country();
+    return allMethods().filter(function (m) { return (m.countries || ["PT"]).indexOf(c) >= 0; });
+  }
   function currentMethod() {
-    return methods().find(function (m) { return m.id === delivery.methodId; }) || null;
+    return methods().find(function (m) { return m.id === delivery.methodId; }) || null; // só métodos do país escolhido
   }
   function shipCost(m) { return m.freeFrom && cartSubtotal >= m.freeFrom ? 0 : m.price; }
   function selectedPoint(m) {
@@ -218,7 +235,12 @@
 
   function renderDelivery() {
     var list = methods();
-    if (!currentMethod() && list[0]) { delivery = { methodId: list[0].id }; saveDelivery(); }
+    var cList = countries();
+    $("countryBox").hidden = cList.length < 2;
+    $("shipCountry").innerHTML = cList.map(function (c) {
+      return '<option value="' + esc(c) + '"' + (c === country() ? " selected" : "") + ">" + esc(countryName(c)) + "</option>";
+    }).join("");
+    if (!currentMethod() && list[0]) { delivery = { methodId: list[0].id, country: country() }; saveDelivery(); }
     var m = currentMethod();
     $("deliveryMethods").innerHTML = list.map(function (x) {
       var cost = shipCost(x);
@@ -249,7 +271,13 @@
 
   $("deliveryMethods").addEventListener("change", function (e) {
     if (e.target.name !== "delivery") return;
-    delivery = { methodId: e.target.value, point: delivery.point };
+    delivery = { methodId: e.target.value, point: delivery.point, country: country() };
+    saveDelivery();
+    renderDelivery();
+  });
+
+  $("shipCountry").addEventListener("change", function (e) {
+    delivery = { country: e.target.value }; // outro país: escolhe de novo o método (e o ponto)
     saveDelivery();
     renderDelivery();
   });
@@ -363,7 +391,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // Só identificadores: preços, portes e peso são calculados no servidor
-      body: JSON.stringify({ items: cart, delivery: { methodId: m.id, servicePointId: point ? point.id : "" } })
+      body: JSON.stringify({ items: cart, delivery: { methodId: m.id, servicePointId: point ? point.id : "", country: country() } })
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {

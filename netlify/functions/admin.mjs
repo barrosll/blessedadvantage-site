@@ -230,6 +230,9 @@ export default async (req) => {
     if (!STATUSES.includes(status)) return json({ error: "Estado inválido" }, 400);
     const code = body.trackingNumber == null ? order.trackingNumber : String(body.trackingNumber).trim().toUpperCase().slice(0, 40);
     if (code && !/^[A-Z0-9]+$/.test(code)) return json({ error: "Código de seguimento inválido (só letras e números)" }, 400);
+    // Envio manual: link de seguimento da transportadora (InPost, Packlink…), opcional
+    let link = body.trackingUrl == null ? null : String(body.trackingUrl).trim().slice(0, 300);
+    if (link && !/^https:\/\/[^\s"'<>]+$/.test(link)) return json({ error: "Link de seguimento inválido (tem de começar por https://)" }, 400);
     if (["shipped", "in_transit"].includes(status) && !code && !hasShipment(order)) {
       return json({ error: "Para marcar como enviada sem Sendcloud, indica o código de seguimento" }, 400);
     }
@@ -249,8 +252,9 @@ export default async (req) => {
     await updateOrder(order.token, (o) => {
       if (code !== o.trackingNumber) {
         o.trackingNumber = code || "";
-        o.trackingUrl = code ? (o.sendcloudParcelId ? o.trackingUrl : cttUrl(code)) : "";
+        o.trackingUrl = code ? (o.sendcloudParcelId ? o.trackingUrl : o.shippingManual ? "" : cttUrl(code)) : "";
       }
+      if (o.shippingManual && link != null) o.trackingUrl = link;
       if (status === "cancelled" && cancelMsg.includes("cancelado na")) o.shippingStatus = "cancelled";
       applyStatus(o, status, { force: true });
     });

@@ -217,9 +217,11 @@ export function adminNewOrderEmail(order, siteUrl) {
     <p style="margin:0;${FONT}font-size:14px;line-height:1.7;color:${C.text};">
       ${esc(order.shippingMethodName || "—")}<br>
       ${sp ? `Ponto: ${esc(sp.name)} — ${esc(sp.street)}, ${esc(sp.postalCode)} ${esc(sp.city)}<br>` : ""}
-      Morada: ${esc([a.line1, a.line2, a.postalCode, a.city].filter(Boolean).join(", "))}<br>
+      Morada: ${esc([a.line1, a.line2, a.postalCode, a.city, a.country && a.country !== "PT" ? a.country : ""].filter(Boolean).join(", "))}<br>
+      ${order.phone ? `Telefone: ${esc(order.phone)}<br>` : ""}
       Peso: ${esc(order.parcelWeight)} kg<br>
       Tracking: ${tracking}</p>
+      ${order.shippingManual ? `<p style="margin:12px 0 0;padding:10px 12px;background:#eef6ff;color:#123c69;"><strong>Envio manual:</strong> cria a guia na Packlink / InPost com esta morada e depois cola o código e o link de seguimento na gestão (estado “Enviada”).</p>` : ""}
     ${button(`${siteUrl}/admin.html`, "Abrir gestão")}`;
   return {
     subject: `Nova encomenda paga — ${order.number}`,

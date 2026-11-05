@@ -148,6 +148,7 @@
     var errors = o.emailErrors || {};
     var warns = (shipError(o)
         ? '<div class="o-warn"><span><strong>⚠ ENVIO NÃO CRIADO</strong><br>' + esc(o.shippingError || "") + '</span><button class="btn btn-sm" data-act="retry-shipment">Tentar novamente</button></div>'
+        : o.shippingManual && !o.trackingNumber ? '<div class="o-warn" style="background:#eef6ff;color:#123c69"><span><strong>✉ ENVIO MANUAL — ' + esc((a.country || "") + " · " + (o.shippingMethodName || "")) + '</strong><br>Cria a guia na Packlink / InPost com a morada abaixo, cola aqui o código e o link de seguimento e marca “Enviada”.</span></div>'
         : o.shippingStatus === "not_configured" ? '<div class="o-warn" style="background:#fffbe0;color:#5c5c00">' + (o.cttProduct ? "CTT" : "Sendcloud") + ' ainda não configurado — envio por criar.</div>' : "");
     var hasNote = o.items.some(function (it) { return it.note; });
     var emails = Object.keys(EMAILS).filter(function (k) { return k !== "pickup" || sp; }).map(function (k) {
@@ -184,7 +185,8 @@
         '<label class="field"><span>Estado</span><select class="field-select" data-f="status">' +
           Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (k === o.status ? " selected" : "") + ">" + STATUS[k] + "</option>"; }).join("") +
         "</select></label>" +
-        '<label class="field"><span>Código de seguimento</span><input type="text" data-f="tracking" value="' + esc(o.trackingNumber || "") + '" placeholder="preenchido automaticamente" autocomplete="off"></label>' +
+        '<label class="field"><span>Código de seguimento</span><input type="text" data-f="tracking" value="' + esc(o.trackingNumber || "") + '" placeholder="' + (o.shippingManual ? "código da guia (InPost, Packlink…)" : "preenchido automaticamente") + '" autocomplete="off"></label>' +
+        (o.shippingManual ? '<label class="field"><span>Link de seguimento</span><input type="url" data-f="trackingUrl" value="' + esc(o.trackingUrl || "") + '" placeholder="https://…" autocomplete="off"></label>' : "") +
         '<p class="hint" style="margin:0">“Enviada” / “Entregue” enviam o email correspondente ao cliente (uma só vez). “Cancelada” não anula a guia — o reembolso faz-se na Stripe.</p>' +
         '<button class="btn btn-sm" data-act="save">Guardar estado</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="label"' + (canLabel ? "" : " disabled") + ">Imprimir etiqueta</button>" +
@@ -239,6 +241,8 @@
     else {
       payload.status = card.querySelector('[data-f="status"]').value;
       payload.trackingNumber = card.querySelector('[data-f="tracking"]').value;
+      var linkEl = card.querySelector('[data-f="trackingUrl"]');
+      if (linkEl) payload.trackingUrl = linkEl.value;
       if (payload.status === "cancelled" && order.status !== "cancelled" &&
         !confirm("Cancelar a encomenda " + order.number + "?\nO envio na Sendcloud é cancelado se possível. O reembolso NÃO é automático — faz-se no painel da Stripe.")) return;
     }
@@ -494,11 +498,13 @@
             return '<option value="' + p[0] + '"' + ((m.cttProduct || "") === p[0] ? " selected" : "") + ">" + p[1] + "</option>";
           }).join("") + "</select></label>" +
         (m.cttProduct ? "" : f("sendcloudCode", "Código Sendcloud", m.sendcloudCode, ' placeholder="carregar da Sendcloud" maxlength="120"')) +
+        f("countries", "Países (códigos)", (m.countries && m.countries.length ? m.countries : ["PT"]).join(", "), ' placeholder="PT ou FR, ES" maxlength="120"') +
         f("price", "Preço (€)", m.price == null ? "" : toEuros(m.price), ' inputmode="decimal" placeholder="—"') +
         f("freeFrom", "Grátis a partir (€)", m.freeFrom ? toEuros(m.freeFrom) : "", ' inputmode="decimal" placeholder="nunca"') +
         '<label>Transporte (dias)<span style="display:flex;gap:4px;align-items:center"><input type="text" data-m="d0" data-i="' + i + '" value="' + m.days[0] + '" inputmode="numeric" style="width:42px"> a <input type="text" data-m="d1" data-i="' + i + '" value="' + m.days[1] + '" inputmode="numeric" style="width:42px"></span></label>' +
         '<div class="flags"><label><input type="checkbox" data-m="enabled" data-i="' + i + '"' + (m.enabled ? " checked" : "") + "> Ativo</label>" +
         '<label><input type="checkbox" data-m="requiresServicePoint" data-i="' + i + '"' + (m.requiresServicePoint ? " checked" : "") + "> Ponto de recolha</label>" +
+        '<label title="Sem guia automática: a guia é feita à mão (Packlink, InPost…) e o código colado na encomenda"><input type="checkbox" data-m="manual" data-i="' + i + '"' + (m.manual ? " checked" : "") + "> Envio manual</label>" +
         '<button type="button" class="icon" data-delmethod="' + i + '" aria-label="Remover método">×</button></div>' +
         "</div>";
     }).join("");
@@ -507,7 +513,8 @@
     var el = e.target, m = methodsDraft[Number(el.dataset.i)];
     if (!m || !el.dataset.m) return;
     var k = el.dataset.m;
-    if (k === "enabled" || k === "requiresServicePoint") m[k] = el.checked;
+    if (k === "enabled" || k === "requiresServicePoint" || k === "manual") m[k] = el.checked;
+    else if (k === "countries") m.countries = el.value.split(/[\s,;]+/).map(function (c) { return c.trim().toUpperCase(); }).filter(Boolean);
     else if (k === "price") m.price = el.value.trim() === "" ? null : toCents(el.value);
     else if (k === "freeFrom") m.freeFrom = el.value.trim() === "" ? 0 : toCents(el.value);
     else if (k === "d0") m.days[0] = Number(el.value) || 1;
@@ -516,7 +523,7 @@
   });
   $("methodRows").addEventListener("change", function (e) {
     var el = e.target, m = methodsDraft[Number(el.dataset.i)];
-    if (m && (el.dataset.m === "enabled" || el.dataset.m === "requiresServicePoint")) m[el.dataset.m] = el.checked;
+    if (m && (el.dataset.m === "enabled" || el.dataset.m === "requiresServicePoint" || el.dataset.m === "manual")) m[el.dataset.m] = el.checked;
     if (m && el.dataset.m === "cttProduct") {
       m.cttProduct = el.value;
       if (el.value) m.carrier = "ctt";
@@ -530,7 +537,7 @@
     renderMethods();
   });
   $("addMethod").addEventListener("click", function () {
-    methodsDraft.push({ id: "metodo-" + randomId(4), name: "", carrier: "", sendcloudCode: "", cttProduct: "", price: null, freeFrom: 0, days: [2, 4], requiresServicePoint: false, enabled: false });
+    methodsDraft.push({ id: "metodo-" + randomId(4), name: "", carrier: "", sendcloudCode: "", cttProduct: "", price: null, freeFrom: 0, days: [2, 4], requiresServicePoint: false, manual: false, countries: ["PT"], enabled: false });
     renderMethods();
   });
 
